@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# Agent Progress Tracking
+progress.md
+
+# Memory Databases
+data/
+*.db
+*-wal
+*-shm
+
+# Local runtime artifacts
+artifacts/hiro-local.err.log
+artifacts/hiro-local.out.log
+artifacts/hiro-local.pid
+flylogs.txt
+artifacts/*.md

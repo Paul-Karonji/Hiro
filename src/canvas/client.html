@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hiro · Live Canvas</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d1a;
+      --surface: #13132a;
+      --border: rgba(139, 92, 246, 0.18);
+      --accent: #7c3aed;
+      --accent-light: #a78bfa;
+      --text: #e2e0ff;
+      --muted: #6b6b9a;
+      --success: #34d399;
+      --danger: #f87171;
+      --glow: 0 0 24px rgba(124, 58, 237, 0.35);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── LAYOUT ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      height: 100vh;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 28px 20px;
+      gap: 24px;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sidebar-logo .orb {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #a78bfa, #7c3aed 60%, #4c1d95);
+      box-shadow: var(--glow);
+      flex-shrink: 0;
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 16px rgba(124,58,237,0.4); }
+      50%       { box-shadow: 0 0 36px rgba(167,139,250,0.7); }
+    }
+
+    .sidebar-logo h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .sidebar-logo span {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 400;
+      margin-top: 1px;
+    }
+
+    /* Connection badge */
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      transition: all 0.3s;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+
+    .status-badge.connected .status-dot   { background: var(--success); box-shadow: 0 0 8px rgba(52,211,153,0.6); }
+    .status-badge.connecting .status-dot  { background: #fbbf24; animation: blink 1s ease infinite; }
+    .status-badge.disconnected .status-dot { background: var(--danger); }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* Widget history list */
+    .history-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .history-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-item {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--muted);
+    }
+
+    .history-item:hover,
+    .history-item.active {
+      border-color: var(--border);
+      background: rgba(124,58,237,0.08);
+      color: var(--text);
+    }
+
+    .history-item .item-title {
+      font-weight: 500;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .history-item .item-time {
+      font-size: 10px;
+      opacity: 0.5;
+    }
+
+    .history-empty {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      padding: 20px 0;
+      line-height: 1.6;
+    }
+
+    /* ── MAIN CANVAS ── */
+    .canvas-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .canvas-toolbar {
+      height: 52px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 12px;
+      backdrop-filter: blur(8px);
+      background: rgba(13,13,26,0.8);
+    }
+
+    .canvas-title {
+      font-size: 14px;
+      font-weight: 600;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .canvas-hint {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .canvas-content {
+      flex: 1;
+      overflow: auto;
+      padding: 32px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* Welcome placeholder */
+    .canvas-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      pointer-events: none;
+    }
+
+    .canvas-placeholder .icon { font-size: 52px; }
+    .canvas-placeholder h2 { font-size: 20px; font-weight: 700; color: var(--accent-light); }
+    .canvas-placeholder p  { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.7; }
+
+    .canvas-placeholder.hidden { display: none; }
+
+    .canvas-inner {
+      width: 100%;
+      max-width: 900px;
+      animation: fadeIn 0.35s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Injected widget styles baseline */
+    .canvas-inner table { border-collapse: collapse; width: 100%; }
+    .canvas-inner td, .canvas-inner th { padding: 10px 14px; border: 1px solid var(--border); text-align: left; font-size: 14px; }
+    .canvas-inner th { background: rgba(124,58,237,0.12); color: var(--accent-light); font-weight: 600; }
+    .canvas-inner h1,h2,h3 { color: var(--accent-light); margin-bottom: 12px; }
+    .canvas-inner p { color: var(--text); line-height: 1.7; margin-bottom: 12px; }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="orb"></div>
+      <div>
+        <h1>Hiro</h1>
+        <span>Live Canvas</span>
+      </div>
+    </div>
+
+    <div class="status-badge connecting" id="status-badge">
+      <div class="status-dot"></div>
+      <span id="status-text">Connecting…</span>
+    </div>
+
+    <div class="history-title">Widget History</div>
+    <div class="history-list" id="history-list">
+      <div class="history-empty">No widgets yet.<br>Ask Hiro to render something!</div>
+    </div>
+  </aside>
+
+  <!-- CANVAS -->
+  <main class="canvas-area">
+    <div class="canvas-toolbar">
+      <div class="canvas-title" id="canvas-title">Waiting for Hiro…</div>
+      <div class="canvas-hint" id="canvas-hint">Try: "show me a usage chart"</div>
+    </div>
+    <div class="canvas-content">
+      <!-- placeholder shown until first widget -->
+      <div class="canvas-placeholder" id="canvas-placeholder">
+        <div class="icon">🎨</div>
+        <h2>Hiro Live Canvas</h2>
+        <p>Connected · Waiting for widgets from Hiro…<br>Try: <em>"render my usage chart"</em> in Telegram</p>
+      </div>
+      <div class="canvas-inner" id="canvas-inner">
+        <!-- widgets render here -->
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+  const HOST = location.host;
+  const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${HOST}/canvas/ws`;
+
+  const statusBadge   = document.getElementById('status-badge');
+  const statusText    = document.getElementById('status-text');
+  const canvasTitle   = document.getElementById('canvas-title');
+  const canvasHint    = document.getElementById('canvas-hint');
+  const placeholder   = document.getElementById('canvas-placeholder');
+  const historyList   = document.getElementById('history-list');
+
+  let history = [];
+  let reconnectDelay = 1500;
+
+  function setStatus(state, text) {
+    statusBadge.className = `status-badge ${state}`;
+    statusText.textContent = text;
+  }
+
+  function formatTime(iso) {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function renderWidget(entry, updateHistory = true) {
+    // Always look up the live element by ID (variable goes stale after replaceWith)
+    const existing = document.getElementById('canvas-inner');
+    const div = document.createElement('div');
+    div.className = 'canvas-inner';
+    div.id = 'canvas-inner';
+    div.innerHTML = entry.html;
+    if (existing) {
+      existing.replaceWith(div);
+    } else {
+      document.querySelector('.canvas-content').appendChild(div);
+    }
+
+    // Hide the placeholder
+    if (placeholder) placeholder.classList.add('hidden');
+
+    canvasTitle.textContent = entry.title || 'Widget';
+    canvasHint.textContent  = formatTime(entry.timestamp);
+
+    if (updateHistory) {
+      history.unshift(entry);
+      rebuildHistory();
+    }
+  }
+
+  function rebuildHistory() {
+    if (history.length === 0) {
+      historyList.innerHTML = '<div class="history-empty">No widgets yet.<br>Ask Hiro to render something!</div>';
+      return;
+    }
+
+    historyList.innerHTML = history.map((e, i) => `
+      <div class="history-item${i === 0 ? ' active' : ''}" onclick="loadHistoryItem(${i})">
+        <div class="item-title">${e.title || 'Widget'}</div>
+        <div class="item-time">${formatTime(e.timestamp)}</div>
+      </div>
+    `).join('');
+  }
+
+  window.loadHistoryItem = function(index) {
+    const entry = history[index];
+    if (!entry) return;
+    renderWidget(entry, false);
+    // Update active state
+    document.querySelectorAll('.history-item').forEach((el, i) => {
+      el.classList.toggle('active', i === index);
+    });
+  };
+
+  function connect() {
+    setStatus('connecting', 'Connecting…');
+    const ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      setStatus('connected', 'Connected');
+      reconnectDelay = 1500;
+      console.log('[Canvas] WebSocket connected.');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'widget') {
+          renderWidget(payload);
+        }
+      } catch (e) {
+        console.warn('[Canvas] Bad payload:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      setStatus('disconnected', `Reconnecting in ${reconnectDelay / 1000}s…`);
+      setTimeout(() => {
+        reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
+        connect();
+      }, reconnectDelay);
+    };
+
+    ws.onerror = (err) => {
+      console.warn('[Canvas] WS error:', err);
+      ws.close();
+    };
+  }
+
+  connect();
+</script>
+</body>
+</html>
