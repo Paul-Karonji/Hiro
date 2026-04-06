@@ -17,9 +17,11 @@ data/
 *-wal
 *-shm
 
+# Local artifacts and vendor dumps
+artifacts/
+
 # Local runtime artifacts
 artifacts/hiro-local.err.log
 artifacts/hiro-local.out.log
 artifacts/hiro-local.pid
 flylogs.txt
-artifacts/*.md
