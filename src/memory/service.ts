@@ -2,6 +2,8 @@ import { querySemanticMemory, storeSemanticMemory } from "./pinecone";
 import { logActivity as logPostgresActivity, queryAnalytics as queryPostgresAnalytics } from "./postgres";
 import {
   dbQueries,
+  type DocumentRecord,
+  type DocumentSearchResult,
   type MessageRecord,
   type SessionRecord,
   type SessionType,
@@ -51,6 +53,20 @@ export class DefaultMemoryService {
     metadata?: Record<string, unknown> | null;
   }) {
     dbQueries.addMessage(role, content, options);
+  }
+
+  addDocument(input: {
+    sessionId?: string;
+    filename: string;
+    mediaType?: string | null;
+    content: string;
+    metadata?: Record<string, unknown> | null;
+  }): DocumentRecord {
+    return dbQueries.addDocument(input);
+  }
+
+  getRecentDocuments(sessionId?: string, limit?: number): DocumentRecord[] {
+    return dbQueries.getRecentDocuments(sessionId, limit);
   }
 
   getRecentMessages(sessionId?: string, limit?: number): MessageRecord[] {
@@ -107,6 +123,10 @@ export class DefaultMemoryService {
 
   searchConversationHistory(query: string, limit = 5): TranscriptSearchResult[] {
     return dbQueries.searchConversationHistory(query, limit);
+  }
+
+  searchDocuments(query: string, limit = 5, sessionId?: string): DocumentSearchResult[] {
+    return dbQueries.searchDocuments(query, limit, sessionId);
   }
 
   async searchSemanticMemory(query: string, topK = 3) {

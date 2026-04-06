@@ -7,16 +7,19 @@ import { queryAnalyticsDeclaration, queryAnalyticsExecutor } from "./query_analy
 import { speakResponseDeclaration } from "./speak";
 import { shellToolDefinition, runShellCommand } from "./shell";
 import { fileToolsDefinitions, readFile, writeFile, listDirectory, deleteFile } from "./files";
+import { searchDocumentsDeclaration, searchDocumentsExecutor } from "./search_documents";
 import { webToolsDefinitions, searchWeb, readWebpage } from "./web_search";
 import { executeMcpTool, mcpDynamicTools } from "./mcp_bridge";
 import { scheduleToolsDefinitions, scheduleTask, listScheduledTasks, deleteScheduledTask } from "./schedule";
 import { missionsToolsDefinitions, createMission, breakdownMission, updateTaskStatus, addMissionContext, listActiveMissions } from "./missions";
+import { PRIMARY_SESSION_ID } from "../memory/sqlite";
 
 export const tools: any[] = [
   getTimeDeclaration,
   rememberFactDeclaration,
   searchHistoryDeclaration,
   searchMemoryDeclaration,
+  searchDocumentsDeclaration,
   logActivityDeclaration,
   queryAnalyticsDeclaration,
   speakResponseDeclaration,  // Voice output tool
@@ -44,6 +47,9 @@ export async function executeTool(name: string, args: any): Promise<any> {
   }
   if (name === "search_memory") {
     return await searchMemoryExecutor(args);
+  }
+  if (name === "search_documents") {
+    return await searchDocumentsExecutor(args, PRIMARY_SESSION_ID);
   }
   if (name === "log_activity") {
     return await logActivityExecutor(args);

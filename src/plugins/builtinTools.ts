@@ -9,6 +9,7 @@ import { searchHistoryDeclaration, formatHistorySearchResults } from "../tools/s
 import { rememberFactDeclaration } from "../tools/remember_fact";
 import { scheduleToolsDefinitions, deleteScheduledTask, listScheduledTasks, scheduleTask } from "../tools/schedule";
 import { searchMemoryDeclaration } from "../tools/search_memory";
+import { searchDocumentsDeclaration, searchDocumentsExecutor } from "../tools/search_documents";
 import { shellToolDefinition, runShellCommand } from "../tools/shell";
 import { sessionsHistoryDeclaration, sessionsHistoryExecutor, sessionsListDeclaration, sessionsListExecutor, sessionsSendDeclaration, sessionsSendExecutor } from "../tools/sessions";
 import { speakResponseDeclaration } from "../tools/speak";
@@ -82,6 +83,7 @@ export const builtinToolsPlugin: ToolPlugin = {
 
         return sections.join("\n\n");
       }),
+      runtimeTool(searchDocumentsDeclaration, async (args, context) => searchDocumentsExecutor(args, context.sessionId)),
       runtimeTool(logActivityDeclaration, async (args) => {
         const action = String(args.action || "").trim();
         const details = String(args.details || "").trim();

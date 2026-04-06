@@ -300,6 +300,48 @@ export function createTelegramChannelService(): ChannelService {
     }
   });
 
+  bot.on("message:document", async (ctx) => {
+    const indicator = new TypingIndicator(bot.api, ctx.chat.id);
+
+    try {
+      indicator.start("upload_document");
+
+      const document = ctx.message.document;
+      const file = await ctx.api.getFile(document.file_id);
+      const url = `https://api.telegram.org/file/bot${config.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to fetch document: ${res.statusText}`);
+      const documentBuffer = Buffer.from(await res.arrayBuffer());
+      const mediaType = document.mime_type || res.headers.get("content-type")?.split(";")[0] || "application/octet-stream";
+      const filename = document.file_name || "attachment";
+
+      const userText = ctx.message.caption || `Please analyze this document: ${filename}`;
+      const session = resolveTelegramConversationSession(ctx);
+
+      const { text, speakText } = await processMessageWithEngine(userText, false, {
+        sessionId: session.id,
+        enableSpeech: true,
+        documents: [{ data: documentBuffer, mediaType, filename }],
+      });
+
+      if (text.trim().length > 0) {
+        await sendFormattedMessage(ctx, text);
+      }
+
+      if (speakText) {
+        indicator.switchTo("record_voice");
+        const audioBuffer = await generateSpeechFromText(speakText);
+        await ctx.replyWithVoice(new InputFile(audioBuffer, "response.ogg"));
+      }
+    } catch (error: any) {
+      console.error("[Bot] Document handler error:", error);
+      await ctx.reply(`❌ Failed to process document: ${error?.message || String(error)}`);
+    } finally {
+      indicator.stop();
+    }
+  });
+
   bot.on("message:text", async (ctx) => {
     if (ctx.message.text.startsWith("/")) {
       return;

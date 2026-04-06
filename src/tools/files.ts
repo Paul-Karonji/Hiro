@@ -1,9 +1,11 @@
 import fs from 'fs/promises';
 import { existsSync, statSync } from 'fs';
 import path from 'path';
+import { extractDocumentText } from "../documents/extract";
 
 // Allowed root for file operations (to prevent escaping and touching system files)
 const ALLOWED_ROOT = process.cwd();
+const MAX_READABLE_FILE_BYTES = 15 * 1024 * 1024;
 
 // Helper to sanitize and validate file paths
 function resolveAndValidatePath(unsafePath: string): string {
@@ -17,7 +19,7 @@ function resolveAndValidatePath(unsafePath: string): string {
 export const fileToolsDefinitions = [
     {
         name: "read_file",
-        description: "Read the contents of a file.",
+        description: "Read text from a local file. Supports plain-text files, PDFs, and DOCX documents.",
         parameters: {
             type: "OBJECT",
             properties: {
@@ -72,10 +74,16 @@ export async function readFile(args: Record<string, any>): Promise<string> {
         if (!existsSync(target)) return `Error: File not found at ${target}`;
         
         const stats = statSync(target);
-        if (stats.size > 2 * 1024 * 1024) return "Error: File is too large to read (Max 2MB).";
+        if (stats.size > MAX_READABLE_FILE_BYTES) {
+            return `Error: File is too large to read (Max ${Math.floor(MAX_READABLE_FILE_BYTES / (1024 * 1024))}MB).`;
+        }
 
-        const content = await fs.readFile(target, 'utf-8');
-        return content;
+        const buffer = await fs.readFile(target);
+        const extracted = await extractDocumentText({
+            data: buffer,
+            filename: path.basename(target),
+        });
+        return extracted.text;
     } catch (e: any) {
         return `Error reading file: ${e.message}`;
     }

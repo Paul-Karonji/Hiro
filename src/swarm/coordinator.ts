@@ -5,6 +5,7 @@ import type { SessionService } from "../sessions/service";
 const DEFAULT_TOOL_ALLOWLIST = [
   "get_current_time",
   "search_memory",
+  "search_documents",
   "search_web",
   "read_webpage",
   "read_file",

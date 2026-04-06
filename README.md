@@ -9,7 +9,9 @@ This repository is safe to publish only if you keep deployment secrets out of gi
 - Telegram and WhatsApp channels
 - Single-owner access controls for both chat surfaces
 - Voice input and voice replies
+- Document ingestion for PDF, DOCX, and text uploads
 - Memory-backed conversations and summaries
+- Searchable stored document text for later retrieval
 - Web research and built-in tools
 - Optional remote MCP tools
 - Scheduled and proactive tasks
@@ -84,6 +86,12 @@ GOOGLE_TTS_MAX_BYTES_PER_REQUEST=<max-bytes-per-request>
 MCP_CONFIG_JSON_B64=
 ```
 
+Model selection notes:
+
+- Hiro accepts exact `provider:model-id` values, not only the short aliases shown in the chat menu.
+- The local process reads from `.env`; deployed Fly instances read from Fly secrets.
+- Keep the local `.env` and deployed secrets aligned if you want model behavior to match between local and production.
+
 ## Local Development
 
 ```bash
@@ -110,7 +118,9 @@ Do not run multiple Telegram polling processes against the same bot token.
 - Set a unique app/domain name for your own environment.
 - Do not commit deployment logs, generated state, or copied secrets.
 - Keep `data/` out of git. It may contain SQLite state and WhatsApp auth files.
-- If you deploy on Fly, customize [fly.toml](./fly.toml) with your own app name before deploying.
+- On Fly, `/app/data` is mounted persistent state. That volume contains the SQLite database and WhatsApp auth/session files.
+- To preserve WhatsApp auth, deploy in place to the existing app and volume. Do not destroy the volume, wipe `/app/data`, or recreate the app unless you intend to re-link WhatsApp.
+- If you deploy on Fly for a new environment, customize [fly.toml](./fly.toml) with your own app name before deploying.
 
 Example deploy flow:
 
@@ -119,6 +129,24 @@ flyctl launch
 flyctl deploy
 flyctl status
 ```
+
+For an existing Fly app:
+
+```bash
+flyctl deploy -a hiro
+flyctl status -a hiro
+```
+
+Recommended Fly secret parity:
+
+- Keep `ACTIVE_MODEL`, provider API keys, and channel/auth secrets consistent with your local `.env` when you expect local and deployed behavior to match.
+- After changing secrets, restart or redeploy so Hiro reloads them.
+
+Document handling notes:
+
+- Uploaded PDF, DOCX, and text files are parsed and Hiro stores the extracted text in SQLite.
+- Hiro stores extracted text, summaries, and search index entries, not the raw original binary blob.
+- Legacy `.doc` files are not parsed in the current implementation.
 
 ## Webhook Example
 

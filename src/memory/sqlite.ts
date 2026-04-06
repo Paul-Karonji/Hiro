@@ -48,6 +48,16 @@ export interface MessageContextRecord {
   content: string;
 }
 
+export interface DocumentRecord {
+  id: number;
+  session_id: string;
+  filename: string;
+  media_type: string | null;
+  content: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
 export interface TranscriptSearchResult {
   message_id: number;
   session_id: string;
@@ -59,6 +69,16 @@ export interface TranscriptSearchResult {
   timestamp: string;
   before: MessageContextRecord | null;
   after: MessageContextRecord | null;
+}
+
+export interface DocumentSearchResult {
+  document_id: number;
+  session_id: string;
+  session_title: string;
+  filename: string;
+  media_type: string | null;
+  snippet: string;
+  created_at: string;
 }
 
 export interface WorkflowRunRecord {
@@ -169,6 +189,18 @@ function mapMessageContext(row: Record<string, unknown> | undefined): MessageCon
   return {
     role: (row.role as "user" | "model") ?? "user",
     content: String(row.content ?? ""),
+  };
+}
+
+function mapDocument(row: Record<string, unknown>): DocumentRecord {
+  return {
+    id: Number(row.id),
+    session_id: String(row.session_id ?? PRIMARY_SESSION_ID),
+    filename: String(row.filename ?? "document"),
+    media_type: row.media_type ? String(row.media_type) : null,
+    content: String(row.content ?? ""),
+    metadata: safeJsonParse<Record<string, unknown> | null>(row.metadata, null),
+    created_at: String(row.created_at ?? new Date().toISOString()),
   };
 }
 
@@ -309,6 +341,16 @@ export function initSQLite() {
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL DEFAULT '${PRIMARY_SESSION_ID}',
+      filename TEXT NOT NULL,
+      media_type TEXT,
+      content TEXT NOT NULL,
+      metadata TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS summaries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id TEXT NOT NULL DEFAULT '${PRIMARY_SESSION_ID}',
@@ -403,6 +445,7 @@ export function initSQLite() {
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id, id);
+    CREATE INDEX IF NOT EXISTS idx_documents_session_id ON documents(session_id, id);
     CREATE INDEX IF NOT EXISTS idx_summaries_session_id ON summaries(session_id, id);
   `);
 
@@ -427,6 +470,29 @@ export function initSQLite() {
     END;
   `);
   db.prepare(`INSERT INTO messages_fts(messages_fts) VALUES('rebuild')`).run();
+
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+      filename,
+      content,
+      content=documents,
+      content_rowid=id
+    );
+
+    CREATE TRIGGER IF NOT EXISTS documents_fts_insert AFTER INSERT ON documents BEGIN
+      INSERT INTO documents_fts(rowid, filename, content) VALUES (new.id, new.filename, new.content);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS documents_fts_delete AFTER DELETE ON documents BEGIN
+      INSERT INTO documents_fts(documents_fts, rowid, filename, content) VALUES('delete', old.id, old.filename, old.content);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS documents_fts_update AFTER UPDATE ON documents BEGIN
+      INSERT INTO documents_fts(documents_fts, rowid, filename, content) VALUES('delete', old.id, old.filename, old.content);
+      INSERT INTO documents_fts(rowid, filename, content) VALUES(new.id, new.filename, new.content);
+    END;
+  `);
+  db.prepare(`INSERT INTO documents_fts(documents_fts) VALUES('rebuild')`).run();
 
   db.prepare(`
     INSERT OR IGNORE INTO sessions (
@@ -558,6 +624,42 @@ export const dbQueries = {
     dbQueries.touchSession(sessionId, options?.modelUsed ?? null);
   },
 
+  addDocument: (input: {
+    sessionId?: string;
+    filename: string;
+    mediaType?: string | null;
+    content: string;
+    metadata?: Record<string, unknown> | null;
+  }): DocumentRecord => {
+    const sessionId = input.sessionId ?? PRIMARY_SESSION_ID;
+    const info = db.prepare(`
+      INSERT INTO documents (session_id, filename, media_type, content, metadata)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      sessionId,
+      input.filename,
+      input.mediaType ?? null,
+      input.content,
+      input.metadata ? JSON.stringify(input.metadata) : null,
+    );
+
+    dbQueries.touchSession(sessionId, null);
+
+    const row = db.prepare("SELECT * FROM documents WHERE id = ?").get(info.lastInsertRowid) as Record<string, unknown>;
+    return mapDocument(row);
+  },
+
+  getRecentDocuments: (sessionId: string = PRIMARY_SESSION_ID, limit = 5): DocumentRecord[] => {
+    const rows = db.prepare(`
+      SELECT * FROM documents
+      WHERE session_id = ?
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(sessionId, limit) as Record<string, unknown>[];
+
+    return rows.map(mapDocument);
+  },
+
   getRecentMessages: (arg1?: string | number, arg2?: number): MessageRecord[] => {
     const { sessionId, limit } = resolveSessionArgs(arg1, arg2);
     const rows = db.prepare(`
@@ -616,6 +718,12 @@ export const dbQueries = {
         WHERE session_id = ?
       `).run(targetId, sourceId).changes;
 
+      const movedDocuments = db.prepare(`
+        UPDATE documents
+        SET session_id = ?
+        WHERE session_id = ?
+      `).run(targetId, sourceId).changes;
+
       const movedSummaries = db.prepare(`
         UPDATE summaries
         SET session_id = ?
@@ -636,6 +744,7 @@ export const dbQueries = {
 
       return {
         movedMessages,
+        movedDocuments,
         movedSummaries,
         movedUsage,
       };
@@ -775,6 +884,75 @@ export const dbQueries = {
         after: mapMessageContext(afterRow),
       };
     });
+  },
+
+  searchDocuments: (query: string, limit = 5, sessionId?: string): DocumentSearchResult[] => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return [];
+    }
+
+    const ftsQuery = buildHistorySearchQuery(trimmedQuery);
+    const sessionClause = sessionId ? "AND d.session_id = ?" : "";
+    const baseParams = sessionId ? [sessionId] : [];
+    const selectClause = `
+      SELECT
+        d.id AS document_id,
+        d.session_id,
+        s.title AS session_title,
+        d.filename,
+        d.media_type,
+        d.created_at,
+        snippet(documents_fts, 1, '>>>', '<<<', '...', 24) AS snippet
+      FROM documents_fts
+      JOIN documents d ON d.id = documents_fts.rowid
+      JOIN sessions s ON s.id = d.session_id
+    `;
+
+    let rows: Record<string, unknown>[] = [];
+    if (ftsQuery) {
+      try {
+        rows = db.prepare(`
+          ${selectClause}
+          WHERE documents_fts MATCH ?
+          ${sessionClause}
+          ORDER BY bm25(documents_fts), d.id DESC
+          LIMIT ?
+        `).all(ftsQuery, ...baseParams, limit) as Record<string, unknown>[];
+      } catch {
+        rows = [];
+      }
+    }
+
+    if (rows.length === 0) {
+      const fallbackSessionClause = sessionId ? "AND d.session_id = ?" : "";
+      rows = db.prepare(`
+        SELECT
+          d.id AS document_id,
+          d.session_id,
+          s.title AS session_title,
+          d.filename,
+          d.media_type,
+          d.created_at,
+          d.content AS snippet
+        FROM documents d
+        JOIN sessions s ON s.id = d.session_id
+        WHERE (d.filename LIKE ? OR d.content LIKE ?)
+        ${fallbackSessionClause}
+        ORDER BY d.id DESC
+        LIMIT ?
+      `).all(`%${trimmedQuery}%`, `%${trimmedQuery}%`, ...baseParams, limit) as Record<string, unknown>[];
+    }
+
+    return rows.map((row) => ({
+      document_id: Number(row.document_id),
+      session_id: String(row.session_id ?? PRIMARY_SESSION_ID),
+      session_title: String(row.session_title ?? "Untitled Session"),
+      filename: String(row.filename ?? "document"),
+      media_type: row.media_type ? String(row.media_type) : null,
+      snippet: buildFallbackSnippet(String(row.snippet ?? ""), trimmedQuery),
+      created_at: String(row.created_at ?? new Date().toISOString()),
+    }));
   },
 
   addScheduledTask: (cron: string, prompt: string) => {

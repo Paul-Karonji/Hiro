@@ -314,6 +314,36 @@ export function createWhatsAppChannelService(): ChannelService {
           }
         }
         return;
+      } else if (messageType === "documentMessage") {
+        await sock.sendMessage(jid, { text: "Reading document..." });
+        const buffer = await downloadMediaMessage(msg, "buffer", { }, {
+          logger: console as any,
+          reuploadRequest: sock.updateMediaMessage
+        }) as Buffer;
+        const mediaType = msg.message?.documentMessage?.mimetype || "application/octet-stream";
+        const filename = msg.message?.documentMessage?.fileName || "attachment";
+        const caption = (msg.message?.documentMessage as any)?.caption || `Please analyze this document: ${filename}`;
+        const session = resolveWhatsAppConversationSession(jid);
+
+        const { text: responseText, speakText } = await processMessageWithEngine(caption, false, {
+          sessionId: session.id,
+          enableSpeech: true,
+          documents: [{ data: buffer, mediaType, filename }],
+        });
+
+        if (responseText.trim().length > 0) {
+          await sendTextMsg(jid, responseText);
+        }
+
+        if (speakText) {
+          const audioBuffer = await generateSpeechFromText(speakText);
+          await sock.sendMessage(jid, {
+            audio: audioBuffer,
+            mimetype: "audio/ogg; codecs=opus",
+            ptt: true,
+          });
+        }
+        return;
       }
 
       if (!text) return;

@@ -9,11 +9,17 @@ import {
   formatImageMemoriesForSystemPrompt,
   withStoredImageMemory,
 } from "./imageMemory";
+import {
+  appendDocumentPrompt,
+  buildDocumentAttachmentMarker,
+  formatRecentDocumentsForSystemPrompt,
+} from "./documentMemory";
+import type { TurnDocumentContext } from "./documentMemory";
 import type { ActiveModelState } from "../core/modelState";
 import type { ProviderRouter } from "../core/providerRouter";
 import type {
-  RuntimeConfig,
   AgentImageInput,
+  RuntimeConfig,
   AgentTurnRequest,
   AgentTurnResult,
   ToolExecutionContext,
@@ -22,6 +28,7 @@ import type { ToolRegistry } from "../core/toolRegistry";
 import { DefaultMemoryService } from "../memory/service";
 import { PRIMARY_SESSION_ID, type SessionRecord, dbQueries } from "../memory/sqlite";
 import type { SessionService } from "../sessions/service";
+import { extractDocumentText } from "../documents/extract";
 
 type AgentRuntimeDependencies = {
   memory: DefaultMemoryService;
@@ -204,6 +211,55 @@ export class AgentRuntime {
     }
   }
 
+  private async ingestDocuments(
+    session: SessionRecord,
+    request: AgentTurnRequest,
+  ): Promise<TurnDocumentContext[]> {
+    const inputs = request.documents ?? [];
+    if (inputs.length === 0) {
+      return [];
+    }
+
+    const storedDocuments: TurnDocumentContext[] = [];
+
+    for (const input of inputs) {
+      const extracted = await extractDocumentText({
+        data: input.data,
+        filename: input.filename,
+        mediaType: input.mediaType,
+      });
+
+      const stored = this.deps.memory.addDocument({
+        sessionId: session.id,
+        filename: extracted.filename ?? `document-${Date.now()}.txt`,
+        mediaType: extracted.mediaType,
+        content: extracted.text,
+        metadata: {
+          kind: extracted.kind,
+          source: "attachment",
+        },
+      });
+
+      storedDocuments.push({
+        id: stored.id,
+        filename: stored.filename,
+        mediaType: stored.media_type,
+        content: stored.content,
+      });
+
+      try {
+        await this.deps.memory.storeSemanticMemory(
+          `document-${session.id}-${stored.id}`,
+          `Document ${stored.filename}\n${stored.content.slice(0, 4000)}`,
+        );
+      } catch {
+        // Failing semantic indexing must never block document ingestion.
+      }
+    }
+
+    return storedDocuments;
+  }
+
   private async synthesizeToolResults(modelId: string, request: AgentTurnRequest, usableResults: string[]) {
     const combinedContent = usableResults.map((r, i) => `[Source ${i + 1}]:\n${r.substring(0, 6000)}`).join("\n\n");
     const synthResult = await generateText({
@@ -223,12 +279,16 @@ export class AgentRuntime {
     request: AgentTurnRequest,
     explicitAllowlist: string[],
     toolContext: ToolExecutionContext,
+    storedDocuments: TurnDocumentContext[],
   ) {
     console.log("[Runtime] Running tool recovery pass");
 
-    const recoveryPrompt = request.userText +
+    const recoveryPrompt = appendDocumentPrompt(
+      request.userText +
       "\n\nUse the actual built-in tools if external data or connected systems are needed. " +
-      "Do not output JSON, pseudo-code, print(...), or tool placeholders.";
+      "Do not output JSON, pseudo-code, print(...), or tool placeholders.",
+      storedDocuments,
+    );
 
     const recoveryContent = buildUserMessageContent(recoveryPrompt, request.images);
 
@@ -280,6 +340,7 @@ CAPABILITIES:
 - You can respond with a spoken voice message using the speak_response tool
 - You can use tools, memory, and analytics to complete tasks
 - You can push interactive HTML/JS widgets to the Live Canvas at ${config.PUBLIC_BASE_URL}/canvas using render_canvas
+- You can search previously ingested PDF, DOCX, and text attachments with search_documents
 
 CORE RULES:
 - NEVER announce that you are going to execute a tool. DO NOT say "I will search the web now" or "Performing a web search". Just execute the tool silently.
@@ -328,6 +389,13 @@ CORE RULES:
       systemInstruction += "If the user refers to a previously shared image, invitation, poster, event, or flyer, use these memories unless the user corrects them.\n";
     }
 
+    const recentDocuments = formatRecentDocumentsForSystemPrompt(this.deps.memory.getRecentDocuments(session.id, 5));
+    if (recentDocuments) {
+      systemInstruction += "\nRECENT DOCUMENTS (full text is stored locally and searchable with search_documents):\n";
+      systemInstruction += `${recentDocuments}\n`;
+      systemInstruction += "If the user refers to a PDF, file, attachment, document, CV, report, or contract, use search_documents when needed.\n";
+    }
+
     const coreFacts = this.deps.memory.getCoreFacts();
     if (coreFacts.length > 0) {
       systemInstruction += "\nCORE FACTS ABOUT USER (Most relevant):\n";
@@ -349,16 +417,32 @@ CORE RULES:
     const session = this.resolveSession(request.sessionId);
     const requestedModelId = this.deps.sessions.getModelForSession(session, request.modelOverride);
     this.deps.providerRouter.assertModelSelection(requestedModelId);
+    const storedDocuments = await this.ingestDocuments(session, request);
 
-    const userPrompt = request.userText + "\n\n[SYSTEM REMINDER: Do NOT state that you are going to perform an action. You MUST physically invoke the tool via the JSON schema. If you just type 'I am searching...' without executing the actual tool-function, it will fail.]";
+    const userPrompt = appendDocumentPrompt(
+      request.userText,
+      storedDocuments,
+    ) + "\n\n[SYSTEM REMINDER: Do NOT state that you are going to perform an action. You MUST physically invoke the tool via the JSON schema. If you just type 'I am searching...' without executing the actual tool-function, it will fail.]";
 
-    const savedUserText = request.images && request.images.length > 0
-      ? `[Image attached] ${request.userText}`
-      : request.userText;
+    const attachmentMarkers: string[] = [];
+    if (request.images && request.images.length > 0) {
+      attachmentMarkers.push("[Image attached]");
+    }
+
+    const savedUserText = buildDocumentAttachmentMarker(
+      attachmentMarkers.length > 0
+        ? `${attachmentMarkers.join(" ")} ${request.userText}`.trim()
+        : request.userText,
+      storedDocuments,
+    );
 
     this.deps.memory.addMessage("user", savedUserText, {
       sessionId: session.id,
-      metadata: request.metadata ?? null,
+      metadata: {
+        ...(request.metadata ?? {}),
+        attachedDocumentIds: storedDocuments.map((document) => document.id),
+        attachedDocumentNames: storedDocuments.map((document) => document.filename),
+      },
     });
 
     const recentMessages = this.deps.memory.getRecentMessages(session.id, this.deps.runtimeConfig.agent.recentMessages);
@@ -468,7 +552,7 @@ CORE RULES:
           } else {
             console.log("[Runtime] Empty stop with no tool calls - running tool recovery");
             try {
-              const recovered = await this.runToolRecoveryPass(modelId, request, explicitAllowlist, toolContext);
+              const recovered = await this.runToolRecoveryPass(modelId, request, explicitAllowlist, toolContext, storedDocuments);
               if (recovered) {
                 finalText = recovered;
                 console.log(`[Runtime] Tool recovery succeeded (${finalText.length} chars)`);
@@ -503,7 +587,7 @@ CORE RULES:
         } else if (toolCallNames.length === 0 && isPseudoToolOutput(finalText)) {
           console.log("[Runtime] Pseudo-tool output detected - running tool recovery");
           try {
-            const recovered = await this.runToolRecoveryPass(modelId, request, explicitAllowlist, toolContext);
+            const recovered = await this.runToolRecoveryPass(modelId, request, explicitAllowlist, toolContext, storedDocuments);
             if (recovered) {
               finalText = recovered;
               console.log(`[Runtime] Pseudo-tool recovery succeeded (${finalText.length} chars)`);

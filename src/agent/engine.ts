@@ -43,6 +43,7 @@ export async function processMessageWithEngine(
     userText,
     isVoiceMessage,
     images: options?.images,
+    documents: options?.documents,
     modelOverride: options?.modelOverride ?? null,
     allowBackgroundTasks: options?.allowBackgroundTasks,
     enableSpeech: options?.enableSpeech,

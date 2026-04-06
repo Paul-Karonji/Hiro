@@ -49,18 +49,27 @@ export interface ToolTraceEntry {
   finishedAt?: string;
 }
 
+export type AgentBinaryInput = string | Uint8Array;
+
 export type AgentImageInput =
   | string
   | {
-      data: string | Uint8Array;
+      data: AgentBinaryInput;
       mediaType?: string;
     };
+
+export interface AgentDocumentInput {
+  data: AgentBinaryInput;
+  filename?: string;
+  mediaType?: string;
+}
 
 export interface AgentTurnRequest {
   sessionId: string;
   userText: string;
   isVoiceMessage?: boolean;
   images?: AgentImageInput[];
+  documents?: AgentDocumentInput[];
   modelOverride?: string | null;
   allowBackgroundTasks?: boolean;
   enableSpeech?: boolean;
