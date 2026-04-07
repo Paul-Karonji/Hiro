@@ -30,6 +30,33 @@ export function broadcastToCanvas(payload: Omit<CanvasPayload, "timestamp">): vo
   console.log(`[Canvas] Broadcast to ${clients.size} client(s): ${payload.title ?? "widget"}`);
 }
 
+function buildWelcomeWidget(): string {
+  return `
+    <div class="canvas-report canvas-stack">
+      <div>
+        <span class="canvas-eyebrow">Canvas stream</span>
+        <h2>Hiro Live Canvas is online</h2>
+        <p class="canvas-note">The browser channel is connected and ready for charts, review tables, research boards, and interactive widgets.</p>
+      </div>
+      <div class="canvas-grid">
+        <div class="canvas-panel">
+          <span class="canvas-label">Mode</span>
+          <span class="canvas-stat">Live</span>
+          <p class="canvas-note">Private operator surface connected over WebSocket.</p>
+        </div>
+        <div class="canvas-panel">
+          <span class="canvas-label">Ready for</span>
+          <div class="canvas-badge-row">
+            <span class="canvas-badge">Charts</span>
+            <span class="canvas-badge">Tables</span>
+            <span class="canvas-badge">JavaScript</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `.trim();
+}
+
 /**
  * Attaches a WebSocket server to the existing HTTP server at path /canvas/ws.
  */
@@ -46,16 +73,11 @@ export function initializeCanvasServer(httpServer: HttpServer): void {
     const ip = req.socket.remoteAddress ?? "unknown";
     console.log(`[Canvas] Client connected from ${ip}. Total: ${clients.size}`);
 
-    // Send a welcome ping
     ws.send(
       JSON.stringify({
         type: "widget",
         title: "Canvas Ready",
-        html: `<div style="text-align:center;padding:40px;color:#a78bfa;font-family:sans-serif;">
-          <div style="font-size:48px;margin-bottom:16px;">🎨</div>
-          <h2 style="margin:0 0 8px">Hiro Live Canvas</h2>
-          <p style="opacity:0.6;margin:0">Connected · Waiting for widgets from Hiro…</p>
-        </div>`,
+        html: buildWelcomeWidget(),
         timestamp: new Date().toISOString(),
       }),
     );

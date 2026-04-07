@@ -243,11 +243,11 @@ export class AgentRuntime {
       || (haystack.includes("Invalid JSON response") && haystack.includes("tool:"));
   }
 
-  private resolveAlibabaToolFallbackModel(modelId: string) {
+  private resolvePrimaryModelFallbackModel(modelId: string) {
     const candidates = [
-      "openrouter:qwen/qwen3.6-plus:free",
       "google:gemini-2.5-flash",
       "mistral:mistral-large-latest",
+      "groq:llama-3.3-70b-versatile",
     ];
 
     for (const candidate of candidates) {
@@ -262,6 +262,21 @@ export class AgentRuntime {
     }
 
     return null;
+  }
+
+  private isRetryablePrimaryModelError(error: any) {
+    const haystack = [
+      error?.message,
+      error?.cause?.message,
+      error?.cause?.error?.message,
+      error?.cause?.value?.message,
+      error?.cause?.value?.error?.message,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    return /request rate increased too quickly|rate limit|too many requests|upstream error|requires more credits|insufficient credits|insufficient balance|upgrade to a paid account|quota exceeded|billing|max_tokens|maximum context length|context length|context window|token limit|requested up to \d+ tokens|can only afford \d+|temporarily unavailable|service unavailable|timed out|timeout|overloaded|connection reset|socket hang up|econnreset|network error|\b429\b|\b503\b|NoContentGeneratedError|model output must contain|output text or tool calls/i
+      .test(haystack);
   }
 
   private async generateTextWithAlibabaToolFallback(
@@ -279,16 +294,16 @@ export class AgentRuntime {
         modelId,
       };
     } catch (error: any) {
-      if (!this.isAlibabaToolSchemaError(modelId, error)) {
+      if (!this.isAlibabaToolSchemaError(modelId, error) && !this.isRetryablePrimaryModelError(error)) {
         throw error;
       }
 
-      const fallbackModelId = this.resolveAlibabaToolFallbackModel(modelId);
+      const fallbackModelId = this.resolvePrimaryModelFallbackModel(modelId);
       if (!fallbackModelId) {
         throw error;
       }
 
-      console.warn(`[Runtime] Alibaba tool schema rejected by provider. Retrying with ${fallbackModelId}.`);
+      console.warn(`[Runtime] Model request failed for ${modelId}. Retrying with ${fallbackModelId}.`);
       return {
         result: await run(fallbackModelId),
         modelId: fallbackModelId,
@@ -486,6 +501,7 @@ CORE RULES:
 - NEVER announce that you are going to execute a tool. DO NOT say "I will search the web now" or "Performing a web search". Just execute the tool silently.
 - IMPORTANT: Typing your intention in text DOES NOT execute actions. You MUST invoke the internal JSON tool schema. If you just type text, you will fail the task.
 - When the user asks to "render", "show", "chart", "visualise", "draw", or "display" anything - use the render_canvas tool with a self-contained HTML/JS snippet.
+- When rendering to canvas, target Hiro's operator shell: use semantic HTML, rely on the built-in canvas utility classes when helpful, and do not recreate full-page browser chrome unless the task truly needs it.
 - When the user asks you to speak, say something aloud, or reply with voice, call speak_response.
 - When the user asks you to create, save, export, draft, or generate a file or document, use export_file instead of only pasting the content in chat.
 - In normal Telegram or WhatsApp chat, created files are expected to be attached back to the user by default. Only suppress delivery when the user explicitly asked to save locally or not send the file.

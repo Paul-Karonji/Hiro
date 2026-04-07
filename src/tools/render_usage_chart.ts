@@ -3,19 +3,28 @@ import { getAppContext } from "../core/appContext";
 import { config } from "../config";
 import type { RuntimeTool } from "../core/types";
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export const renderUsageChartDeclaration = {
   name: "render_usage_chart",
   description:
-    "Fetch Hiro's token usage stats and immediately render an interactive bar chart on the Live Canvas. " +
-    "Use this whenever the user asks to 'show', 'chart', 'graph', 'visualise', or 'render' token usage, API cost, or model stats. " +
-    "This does everything in one step - no need to call get_usage_summary and render_canvas separately.",
+    "Fetch Hiro's token usage stats and immediately render a polished usage board on the Live Canvas. " +
+    "Use this whenever the user asks to show, chart, graph, visualise, or render token usage, API cost, or model stats. " +
+    "This does everything in one step, so there is no need to call get_usage_summary and render_canvas separately.",
   parameters: {
     type: "object",
     properties: {
       metric: {
         type: "string",
         description:
-          "Which metric to show on the chart: 'tokens' (input+output per model), 'calls' (number of API calls per model), or 'cost' (estimated USD cost per model). Defaults to 'tokens'.",
+          "Which metric to show on the chart: 'tokens' for input plus output per model, 'calls' for API call count per model, or 'cost' for estimated USD cost per model. Defaults to 'tokens'.",
       },
     },
     additionalProperties: false,
@@ -33,86 +42,113 @@ export const renderUsageChartTool: RuntimeTool = {
       return "No usage data recorded yet - chat a bit more and try again.";
     }
 
-    const labels = summary.map((r) => r.model.replace("openrouter:", "or:").replace("google:", "ggl:"));
+    const labels = summary.map((record) =>
+      record.model.replace("openrouter:", "or:").replace("google:", "ggl:"),
+    );
+
     let values: number[];
     let chartTitle: string;
     let colorPalette: string[];
 
     if (metric === "calls") {
-      values = summary.map((r) => r.calls);
+      values = summary.map((record) => record.calls);
       chartTitle = "API Calls per Model";
-      colorPalette = ["#7c6be0", "#e06b7c", "#6be0c1", "#e0c16b", "#6baee0"];
+      colorPalette = ["#58c6b5", "#d6ad75", "#7ba6ff", "#f0897e", "#8fd5ff"];
     } else if (metric === "cost") {
-      values = summary.map((r) => parseFloat(r.totalCostUsd.toFixed(6)));
-      chartTitle = "Estimated Cost (USD) per Model";
-      colorPalette = ["#e06b7c", "#7c6be0", "#6be0c1", "#e0c16b", "#6baee0"];
+      values = summary.map((record) => parseFloat(record.totalCostUsd.toFixed(6)));
+      chartTitle = "Estimated Cost per Model";
+      colorPalette = ["#d6ad75", "#58c6b5", "#f0897e", "#7ba6ff", "#8fd5ff"];
     } else {
-      values = summary.map((r) => r.totalInputTokens + r.totalOutputTokens);
+      values = summary.map((record) => record.totalInputTokens + record.totalOutputTokens);
       chartTitle = "Total Tokens per Model";
-      colorPalette = ["#7c6be0", "#6be0c1", "#e06b7c", "#e0c16b", "#6baee0"];
+      colorPalette = ["#58c6b5", "#7ba6ff", "#d6ad75", "#f0897e", "#8fd5ff"];
     }
 
     const maxVal = Math.max(...values, 1);
     const totals = {
-      calls: summary.reduce((s, r) => s + r.calls, 0),
-      inputTokens: summary.reduce((s, r) => s + r.totalInputTokens, 0),
-      outputTokens: summary.reduce((s, r) => s + r.totalOutputTokens, 0),
-      costUsd: summary.reduce((s, r) => s + r.totalCostUsd, 0).toFixed(6),
+      calls: summary.reduce((sum, record) => sum + record.calls, 0),
+      inputTokens: summary.reduce((sum, record) => sum + record.totalInputTokens, 0),
+      outputTokens: summary.reduce((sum, record) => sum + record.totalOutputTokens, 0),
+      costUsd: summary.reduce((sum, record) => sum + record.totalCostUsd, 0).toFixed(6),
     };
 
     const barRows = labels
-      .map((label, i) => {
-        const pct = Math.round((values[i] / maxVal) * 100);
-        const color = colorPalette[i % colorPalette.length];
-        const displayVal =
-          metric === "cost"
-            ? `$${values[i].toFixed(6)}`
-            : values[i].toLocaleString();
+      .map((label, index) => {
+        const pct = Math.max(6, Math.round((values[index] / maxVal) * 100));
+        const color = colorPalette[index % colorPalette.length];
+        const displayValue =
+          metric === "cost" ? `$${values[index].toFixed(6)}` : values[index].toLocaleString();
 
         return `
-      <div style="margin-bottom:18px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-          <span style="font-size:13px;color:#c5c0f5;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:72%">${label}</span>
-          <span style="font-size:13px;color:${color};font-weight:700">${displayVal}</span>
-        </div>
-        <div style="background:#2a2a45;border-radius:6px;height:22px;overflow:hidden;">
-          <div style="background:linear-gradient(90deg,${color}cc,${color});width:${pct}%;height:100%;border-radius:6px;transition:width 0.6s ease;display:flex;align-items:center;padding-left:8px;box-sizing:border-box;">
-            <span style="font-size:11px;color:#fff;font-weight:600;white-space:nowrap">${pct}%</span>
+          <div class="usage-row">
+            <div class="usage-row-head">
+              <span class="usage-label">${escapeHtml(label)}</span>
+              <span class="usage-value" style="color:${color}">${escapeHtml(displayValue)}</span>
+            </div>
+            <div class="usage-track">
+              <div class="usage-fill" style="width:${pct}%;background:linear-gradient(90deg, ${color}88, ${color});">
+                <span>${pct}%</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>`;
+        `;
       })
       .join("");
 
     const html = `
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', sans-serif; background: #0f0f1e; color: #e2e0ff; }
-</style>
-<div style="font-family:'Inter',sans-serif;background:#13132b;border-radius:14px;padding:26px;color:#e2e0ff;max-width:600px;margin:0 auto;box-shadow:0 4px 32px #0006;">
-  <h2 style="font-size:18px;font-weight:700;color:#a78bfa;margin-bottom:6px;">Usage Chart: ${chartTitle}</h2>
-  <p style="font-size:12px;color:#7875a8;margin-bottom:22px;">Hiro Live Canvas - ${new Date().toLocaleString()}</p>
+      <style>
+        .usage-board { display:grid; gap:22px; }
+        .usage-head { display:grid; gap:10px; }
+        .usage-rows { display:grid; gap:14px; }
+        .usage-row { display:grid; gap:8px; }
+        .usage-row-head { display:flex; justify-content:space-between; gap:14px; align-items:flex-end; }
+        .usage-label { color: var(--muted-strong, #b6c7d8); font-family: var(--mono, monospace); font-size: 0.78rem; letter-spacing: 0.04em; }
+        .usage-value { font-weight: 700; font-size: 0.92rem; }
+        .usage-track { height: 20px; border-radius: 999px; border: 1px solid var(--line, rgba(154,181,204,.18)); background: rgba(255,255,255,0.04); overflow: hidden; }
+        .usage-fill { height: 100%; border-radius: 999px; display:flex; align-items:center; justify-content:flex-end; padding: 0 10px; min-width: fit-content; }
+        .usage-fill span { font-size: 0.68rem; color: #07121b; font-weight: 800; letter-spacing: 0.04em; }
+      </style>
+      <div class="canvas-report usage-board">
+        <div class="usage-head">
+          <span class="canvas-eyebrow">Usage telemetry</span>
+          <h1>${escapeHtml(chartTitle)}</h1>
+          <p class="canvas-note">Snapshot generated at ${escapeHtml(new Date().toLocaleString())}. Use this board to compare model load, spend, and throughput at a glance.</p>
+        </div>
 
-  ${barRows}
+        <div class="canvas-grid">
+          <div class="canvas-panel">
+            <span class="canvas-label">Total calls</span>
+            <span class="canvas-stat">${totals.calls}</span>
+            <p class="canvas-note">All tracked model invocations in the current runtime summary.</p>
+          </div>
+          <div class="canvas-panel">
+            <span class="canvas-label">Total tokens</span>
+            <span class="canvas-stat">${(totals.inputTokens + totals.outputTokens).toLocaleString()}</span>
+            <p class="canvas-note">Combined input and output tokens across all visible models.</p>
+          </div>
+          <div class="canvas-panel">
+            <span class="canvas-label">Estimated cost</span>
+            <span class="canvas-stat">$${totals.costUsd}</span>
+            <p class="canvas-note">Estimated USD cost from the current usage tracker snapshot.</p>
+          </div>
+        </div>
 
-  <div style="border-top:1px solid #2a2a45;margin-top:22px;padding-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;">
-    <div style="background:#1d1d38;border-radius:10px;padding:12px;text-align:center;">
-      <div style="font-size:22px;font-weight:700;color:#7c6be0">${totals.calls}</div>
-      <div style="font-size:11px;color:#7875a8;margin-top:3px">Total Calls</div>
-    </div>
-    <div style="background:#1d1d38;border-radius:10px;padding:12px;text-align:center;">
-      <div style="font-size:22px;font-weight:700;color:#6be0c1">${(totals.inputTokens + totals.outputTokens).toLocaleString()}</div>
-      <div style="font-size:11px;color:#7875a8;margin-top:3px">Total Tokens</div>
-    </div>
-    <div style="background:#1d1d38;border-radius:10px;padding:12px;text-align:center;">
-      <div style="font-size:22px;font-weight:700;color:#e06b7c">$${totals.costUsd}</div>
-      <div style="font-size:11px;color:#7875a8;margin-top:3px">Est. Cost</div>
-    </div>
-  </div>
-</div>`;
+        <div class="canvas-panel">
+          <span class="canvas-label">Per-model distribution</span>
+          <div class="usage-rows">
+            ${barRows}
+          </div>
+        </div>
 
-    broadcastToCanvas({ type: "widget", html: html.trim(), title: chartTitle });
+        <div class="canvas-badge-row">
+          <span class="canvas-badge">Metric: ${escapeHtml(metric)}</span>
+          <span class="canvas-badge">Models: ${summary.length}</span>
+          <span class="canvas-badge">Canvas board</span>
+        </div>
+      </div>
+    `.trim();
+
+    broadcastToCanvas({ type: "widget", html, title: chartTitle });
 
     const totalTokens = totals.inputTokens + totals.outputTokens;
 
@@ -120,14 +156,14 @@ export const renderUsageChartTool: RuntimeTool = {
       `Usage chart pushed to the Live Canvas.\n\n` +
       `*${chartTitle}*\n` +
       summary
-        .map((r, i) =>
-          `${labels[i]}: ${
+        .map((record, index) =>
+          `${labels[index]}: ${
             metric === "cost"
-              ? `$${r.totalCostUsd.toFixed(6)}`
+              ? `$${record.totalCostUsd.toFixed(6)}`
               : metric === "calls"
-                ? `${r.calls} calls`
-                : `${(r.totalInputTokens + r.totalOutputTokens).toLocaleString()} tokens`
-          }`
+                ? `${record.calls} calls`
+                : `${(record.totalInputTokens + record.totalOutputTokens).toLocaleString()} tokens`
+          }`,
         )
         .join("\n") +
       `\n\n*Totals:* ${totals.calls} calls, ${totalTokens.toLocaleString()} tokens, $${totals.costUsd}\n` +

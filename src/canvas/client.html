@@ -3,409 +3,150 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hiro · Live Canvas</title>
+  <title>Hiro Live Canvas</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #0d0d1a;
-      --surface: #13132a;
-      --border: rgba(139, 92, 246, 0.18);
-      --accent: #7c3aed;
-      --accent-light: #a78bfa;
-      --text: #e2e0ff;
-      --muted: #6b6b9a;
-      --success: #34d399;
-      --danger: #f87171;
-      --glow: 0 0 24px rgba(124, 58, 237, 0.35);
-    }
-
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', system-ui, sans-serif;
-      overflow: hidden;
-    }
-
-    /* ── LAYOUT ── */
-    .layout {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      height: 100vh;
-    }
-
-    /* ── SIDEBAR ── */
-    .sidebar {
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      padding: 28px 20px;
-      gap: 24px;
-    }
-
-    .sidebar-logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .sidebar-logo .orb {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 35% 35%, #a78bfa, #7c3aed 60%, #4c1d95);
-      box-shadow: var(--glow);
-      flex-shrink: 0;
-      animation: pulse 3s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 16px rgba(124,58,237,0.4); }
-      50%       { box-shadow: 0 0 36px rgba(167,139,250,0.7); }
-    }
-
-    .sidebar-logo h1 {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: var(--text);
-    }
-
-    .sidebar-logo span {
-      display: block;
-      font-size: 11px;
-      color: var(--muted);
-      font-weight: 400;
-      margin-top: 1px;
-    }
-
-    /* Connection badge */
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.03);
-      transition: all 0.3s;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--muted);
-      transition: background 0.3s;
-      flex-shrink: 0;
-    }
-
-    .status-badge.connected .status-dot   { background: var(--success); box-shadow: 0 0 8px rgba(52,211,153,0.6); }
-    .status-badge.connecting .status-dot  { background: #fbbf24; animation: blink 1s ease infinite; }
-    .status-badge.disconnected .status-dot { background: var(--danger); }
-
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-
-    /* Widget history list */
-    .history-title {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      font-weight: 600;
-    }
-
-    .history-list {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .history-item {
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid transparent;
-      font-size: 12px;
-      cursor: pointer;
-      transition: all 0.15s;
-      color: var(--muted);
-    }
-
-    .history-item:hover,
-    .history-item.active {
-      border-color: var(--border);
-      background: rgba(124,58,237,0.08);
-      color: var(--text);
-    }
-
-    .history-item .item-title {
-      font-weight: 500;
-      margin-bottom: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .history-item .item-time {
-      font-size: 10px;
-      opacity: 0.5;
-    }
-
-    .history-empty {
-      font-size: 12px;
-      color: var(--muted);
-      text-align: center;
-      padding: 20px 0;
-      line-height: 1.6;
-    }
-
-    /* ── MAIN CANVAS ── */
-    .canvas-area {
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .canvas-toolbar {
-      height: 52px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      padding: 0 24px;
-      gap: 12px;
-      backdrop-filter: blur(8px);
-      background: rgba(13,13,26,0.8);
-    }
-
-    .canvas-title {
-      font-size: 14px;
-      font-weight: 600;
-      flex: 1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .canvas-hint {
-      font-size: 11px;
-      color: var(--muted);
-    }
-
-    .canvas-content {
-      flex: 1;
-      overflow: auto;
-      padding: 32px;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      position: relative;
-    }
-
-    /* Welcome placeholder */
-    .canvas-placeholder {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 14px;
-      pointer-events: none;
-    }
-
-    .canvas-placeholder .icon { font-size: 52px; }
-    .canvas-placeholder h2 { font-size: 20px; font-weight: 700; color: var(--accent-light); }
-    .canvas-placeholder p  { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.7; }
-
-    .canvas-placeholder.hidden { display: none; }
-
-    .canvas-inner {
-      width: 100%;
-      max-width: 900px;
-      animation: fadeIn 0.35s ease;
-      position: relative;
-      z-index: 1;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Injected widget styles baseline */
-    .canvas-inner table { border-collapse: collapse; width: 100%; }
-    .canvas-inner td, .canvas-inner th { padding: 10px 14px; border: 1px solid var(--border); text-align: left; font-size: 14px; }
-    .canvas-inner th { background: rgba(124,58,237,0.12); color: var(--accent-light); font-weight: 600; }
-    .canvas-inner h1,h2,h3 { color: var(--accent-light); margin-bottom: 12px; }
-    .canvas-inner p { color: var(--text); line-height: 1.7; margin-bottom: 12px; }
-
-    /* Scrollbar styling */
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Manrope:wght@500;700;800&display=swap");
+    :root{--bg:#08131d;--bg2:#0d1d28;--panel:rgba(8,21,31,.84);--panel2:rgba(11,24,34,.94);--line:rgba(154,181,204,.18);--line2:rgba(154,181,204,.28);--text:#edf3f9;--muted:#92a7bb;--muted2:#b6c7d8;--teal:#58c6b5;--teal2:#8fddd1;--gold:#d6ad75;--rose:#ee8d84;--ok:#7dd3b0;--warn:#f3be71;--shadow:0 24px 80px rgba(0,0,0,.42);--xl:28px;--lg:22px;--md:16px;--body:"IBM Plex Sans",system-ui,sans-serif;--display:"Manrope",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{min-height:100%;background:radial-gradient(circle at top left,rgba(88,198,181,.14),transparent 32%),radial-gradient(circle at bottom right,rgba(214,173,117,.14),transparent 34%),linear-gradient(160deg,var(--bg) 0%,#0a1720 42%,var(--bg2) 100%);color:var(--text);font-family:var(--body)}
+    body{overflow:hidden}
+    button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer;background:none;border:0}
+    .app{display:grid;grid-template-columns:minmax(290px,340px) minmax(0,1fr);min-height:100vh;gap:24px;padding:24px}
+    .rail,.main{display:flex;flex-direction:column;gap:18px;min-width:0}.main{overflow:hidden}
+    .card,.panel,.frame,.deck-card{border:1px solid var(--line);background:var(--panel);border-radius:var(--xl);box-shadow:var(--shadow);backdrop-filter:blur(18px)}
+    .card,.panel,.deck-card{padding:22px 20px}
+    .brand{display:flex;align-items:center;gap:16px}.mark{width:52px;height:52px;border-radius:18px;background:radial-gradient(circle at 28% 24%,rgba(255,255,255,.42),transparent 28%),linear-gradient(145deg,rgba(88,198,181,.98),rgba(26,70,79,.96) 70%,rgba(9,26,36,.98));position:relative;overflow:hidden;box-shadow:0 20px 50px rgba(88,198,181,.2)}.mark:after{content:"";position:absolute;inset:12px;border-radius:12px;border:1px solid rgba(255,255,255,.18)}.brand h1{font-family:var(--display);font-size:1.25rem;font-weight:800;letter-spacing:-.04em}.brand p{margin-top:4px;color:var(--muted);font-size:.92rem;line-height:1.5}
+    .eyebrow,.widget-kicker,.widget-updated,.pill,.meta,.metric-label,.widget-body .canvas-eyebrow,.widget-body .canvas-badge,.widget-body th{font-family:var(--mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em}
+    .eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;color:var(--teal2)}.eyebrow:before,.widget-body .canvas-eyebrow:before{content:"";width:14px;height:1px;background:currentColor;opacity:.65}
+    .status{display:grid;gap:16px}.status-row,.metric-card,.capability,.history-item,.placeholder-main,.placeholder-side,.prompt,.shellbar{border-radius:var(--md);border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.018))}
+    .status-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px}.status-label{display:flex;align-items:center;gap:10px;min-width:0}.dot{width:11px;height:11px;border-radius:999px;background:var(--muted);transition:.16s}.status.connected .dot{background:var(--ok);box-shadow:0 0 0 6px rgba(125,211,176,.12)}.status.connecting .dot{background:var(--warn);animation:pulse 1.1s infinite}.status.disconnected .dot{background:var(--rose);box-shadow:0 0 0 6px rgba(238,141,132,.12)}
+    @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(243,190,113,.28)}50%{box-shadow:0 0 0 8px rgba(243,190,113,.08)}}
+    .status strong{display:block;font-size:.95rem;font-weight:700}.status span{color:var(--muted);font-size:.82rem}.meta{color:var(--muted2);white-space:nowrap}
+    .metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric-card{padding:14px}.metric-value,.widget-body .canvas-stat{display:block;font-family:var(--display);font-weight:800;letter-spacing:-.05em;line-height:1}.metric-value{font-size:1.4rem}
+    .list,.history,.prompts,.deck{display:grid;gap:10px}.capability{padding:15px 16px}.capability strong,.history-title{display:block;font-size:.93rem;font-weight:700}.capability p,.history-item p,.deck-card p,.placeholder-main p,.placeholder-side p,.ops li{margin-top:6px;color:var(--muted);line-height:1.55;font-size:.9rem}
+    .history-card{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}.history{overflow:auto;min-height:0;padding-right:2px}.history-item{width:100%;padding:14px 15px;text-align:left;transition:.16s}.history-item:hover,.history-item:focus-visible,.prompt:hover,.prompt:focus-visible,.action:hover,.action:focus-visible{border-color:var(--line2);background:rgba(255,255,255,.06);transform:translateY(-1px);outline:none}.history-item.active{border-color:rgba(88,198,181,.32);background:linear-gradient(180deg,rgba(88,198,181,.08),rgba(88,198,181,.03))}
+    .history-row{display:flex;justify-content:space-between;gap:12px;margin-top:8px}.history-empty{padding:18px 14px;border-radius:var(--md);border:1px dashed var(--line);color:var(--muted);line-height:1.6;font-size:.9rem}
+    .head,.stage-head{display:flex;align-items:center;justify-content:space-between;gap:18px}.title h2,.stage-copy h3,.widget-title,.placeholder-main h3,.widget-body h1,.widget-body h2,.widget-body h3,.widget-body h4,.deck-card h4{font-family:var(--display);letter-spacing:-.04em;color:var(--text)}.title h2{font-size:clamp(1.7rem,2.5vw,2.5rem);line-height:.98;font-weight:800}.stage-copy h3{font-size:1.28rem;line-height:1.05;font-weight:800}.title p,.stage-copy p,.deck-meta,.footnote{margin-top:8px;color:var(--muted);line-height:1.62;max-width:62ch;font-size:.94rem}
+    .pills,.actions{display:flex;flex-wrap:wrap;gap:10px}.pill,.action{display:inline-flex;align-items:center;gap:10px;border-radius:999px;border:1px solid var(--line);padding:11px 14px;background:rgba(255,255,255,.03)}.pill{color:var(--muted2)}.action strong,.prompt strong{font-size:.83rem;font-weight:700}.action span,.prompt span{color:var(--muted);font-size:.8rem}
+    .frame{padding:0;overflow:hidden;min-height:0;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015)),var(--panel2)}.shellbar{margin:18px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:18px}.widget-title{margin-top:8px;font-size:1.1rem;font-weight:800}.widget-count{display:grid;gap:4px;justify-items:end;text-align:right}.scroll{position:relative;min-height:0;flex:1 1 auto;overflow:auto;padding:0 18px 18px}
+    .widget-body{min-height:calc(100vh - 360px);border-radius:var(--lg);border:1px solid var(--line);background:radial-gradient(circle at top right,rgba(88,198,181,.05),transparent 28%),linear-gradient(180deg,rgba(6,16,24,.96),rgba(9,18,27,.94));padding:28px;position:relative;z-index:1}
+    .placeholder{position:absolute;inset:0 18px 18px;border-radius:var(--lg);display:grid;z-index:2;padding:28px;transition:.18s}.placeholder.hidden{opacity:0;visibility:hidden}.hero{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(290px,.9fr);gap:18px;min-height:100%}.placeholder-main,.placeholder-side{padding:26px;backdrop-filter:blur(14px)}.placeholder-main{display:grid;align-content:space-between;gap:24px}.placeholder-side{display:grid;gap:18px}.placeholder-main h3{font-size:clamp(2rem,4vw,3.35rem);line-height:.94;font-weight:800;max-width:10ch}
+    .prompts{grid-template-columns:repeat(2,minmax(0,1fr))}.prompt{padding:16px;text-align:left;display:grid;gap:6px}.ops{list-style:none;display:grid;gap:12px}.ops strong{display:block;font-size:.9rem;font-weight:700;color:var(--text)}
+    .deck{grid-template-columns:repeat(3,minmax(0,1fr))}.deck-card{display:grid;gap:14px;align-content:start}.deck-list,.mini{list-style:none;display:grid;gap:10px}.deck-list li,.mini li{color:var(--muted2);line-height:1.55;font-size:.9rem}
+    .toast{position:fixed;right:22px;bottom:22px;max-width:min(420px,calc(100vw - 32px));padding:14px 16px;border-radius:16px;border:1px solid rgba(88,198,181,.26);background:rgba(8,21,31,.94);color:var(--text);box-shadow:var(--shadow);transform:translateY(12px);opacity:0;pointer-events:none;transition:.18s}.toast.visible{opacity:1;transform:translateY(0)}
+    .widget-body>:first-child{margin-top:0}.widget-body>:last-child{margin-bottom:0}.widget-body h1{font-size:clamp(1.8rem,2vw,2.35rem);font-weight:800}.widget-body h2{font-size:1.3rem;font-weight:800}.widget-body h3,.widget-body h4{font-size:1rem;font-weight:700}
+    .widget-body p,.widget-body li,.widget-body blockquote{color:#d7e3ee;line-height:1.72;font-size:.95rem}.widget-body p+p{margin-top:10px}.widget-body ul,.widget-body ol{padding-left:1.2rem;margin:12px 0 0}.widget-body li+li{margin-top:8px}.widget-body a{color:var(--teal2)}.widget-body code,.widget-body pre,.deck-card code{font-family:var(--mono)}
+    .widget-body pre{overflow:auto;border-radius:16px;border:1px solid var(--line);background:rgba(5,14,21,.82);padding:16px;margin-top:12px;color:var(--muted2)}.widget-body table{width:100%;border-collapse:collapse;min-width:620px}.widget-body th,.widget-body td{border-bottom:1px solid var(--line);padding:13px 14px;text-align:left;vertical-align:top}.widget-body th{color:var(--muted);background:rgba(255,255,255,.02)}
+    .widget-body .canvas-report,.widget-body .canvas-stack{display:grid;gap:18px}.widget-body .canvas-eyebrow,.widget-body .canvas-badge{display:inline-flex;align-items:center;gap:8px}.widget-body .canvas-eyebrow{color:var(--teal2)}.widget-body .canvas-note{color:var(--muted);font-size:.9rem}.widget-body .canvas-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.widget-body .canvas-panel{border:1px solid var(--line);border-radius:18px;padding:16px 17px;background:rgba(255,255,255,.025)}.widget-body .canvas-label{display:block;color:var(--muted);margin-bottom:8px}.widget-body .canvas-badge-row,.widget-body .canvas-actions{display:flex;flex-wrap:wrap;gap:10px}.widget-body .canvas-badge{border-radius:999px;border:1px solid var(--line);padding:7px 11px;background:rgba(255,255,255,.03);color:var(--muted2)}.widget-body .canvas-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.02)}.widget-body .canvas-divider{height:1px;background:var(--line);margin:6px 0 2px}
+    ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(154,181,204,.22);border-radius:999px}
+    @media (max-width:1180px){body{overflow:auto}.app{grid-template-columns:1fr;gap:18px}.main{overflow:visible}.hero,.deck{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:760px){.app{padding:14px;gap:14px}.head,.stage-head{flex-direction:column;align-items:stretch}.pills,.actions{justify-content:flex-start}.metrics,.deck,.prompts,.hero{grid-template-columns:1fr}.frame,.panel,.card,.deck-card{border-radius:22px}.widget-body,.placeholder{padding:18px}}
   </style>
 </head>
 <body>
-<div class="layout">
+  <div class="app">
+    <aside class="rail">
+      <section class="card"><div class="brand"><div class="mark" aria-hidden="true"></div><div><h1>Hiro Live Canvas</h1><p>Operator-grade workspace for dashboards, briefings, research boards, and interactive browser output.</p></div></div></section>
+      <section class="card">
+        <div class="eyebrow">Connection</div>
+        <div class="status connecting" id="status">
+          <div class="status-row"><div class="status-label"><div class="dot"></div><div><strong id="status-text">Connecting...</strong><span id="status-subtext">Preparing the operator stream</span></div></div><div class="meta" id="status-code">ws boot</div></div>
+          <div class="metrics">
+            <div class="metric-card"><span class="metric-label">Canvas renders</span><span class="metric-value" id="render-count">0</span></div>
+            <div class="metric-card"><span class="metric-label">Current focus</span><span class="metric-value" id="render-focus">Idle</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="card">
+        <div class="eyebrow">What Hiro can stage here</div>
+        <div class="list">
+          <article class="capability"><strong>Research boards</strong><p>Structured comparisons, validation notes, source matrices, and executive decision views.</p></article>
+          <article class="capability"><strong>Live analytics</strong><p>Usage charts, KPI snapshots, cost breakdowns, and status boards tied to Hiro's memory and telemetry.</p></article>
+          <article class="capability"><strong>Interactive widgets</strong><p>Forms, calculators, custom JavaScript, and dynamic browser-native interfaces with script hydration.</p></article>
+          <article class="capability"><strong>Document review surfaces</strong><p>Tables, summaries, extraction views, and operator-friendly layouts for reports and attachments.</p></article>
+        </div>
+      </section>
+      <section class="card history-card">
+        <div class="eyebrow">Render history</div>
+        <div class="history" id="history"><div class="history-empty">No renders yet. Ask Hiro to show a chart, comparison board, review table, or briefing canvas.</div></div>
+      </section>
+    </aside>
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <div class="orb"></div>
-      <div>
-        <h1>Hiro</h1>
-        <span>Live Canvas</span>
-      </div>
-    </div>
+    <main class="main">
+      <section class="panel">
+        <div class="head">
+          <div class="title"><div class="eyebrow">Operator surface</div><h2>Private browser channel for the work chat cannot carry cleanly.</h2><p>Use canvas when the result should be operated, reviewed, compared, or explored instead of pasted into Telegram or WhatsApp.</p></div>
+          <div class="pills"><div class="pill" id="stream-pill">Stream: booting</div><div class="pill">Interactive JS enabled</div><div class="pill">Private operator view</div></div>
+        </div>
+      </section>
 
-    <div class="status-badge connecting" id="status-badge">
-      <div class="status-dot"></div>
-      <span id="status-text">Connecting…</span>
-    </div>
+      <section class="panel" style="padding:18px;min-height:0;flex:1 1 auto">
+        <div class="stage-head" style="padding:4px 4px 18px">
+          <div class="stage-copy"><div class="eyebrow">Active stage</div><h3>Render output with structure, hierarchy, and room to think.</h3><p>The shell stays stable while Hiro swaps in the latest chart, board, table, or interactive widget.</p></div>
+          <div class="actions">
+            <button class="action" type="button" id="copy-link"><strong>Copy canvas link</strong><span>Share the operator route</span></button>
+            <button class="action" type="button" id="reconnect"><strong>Reconnect stream</strong><span>Reset the socket if needed</span></button>
+          </div>
+        </div>
 
-    <div class="history-title">Widget History</div>
-    <div class="history-list" id="history-list">
-      <div class="history-empty">No widgets yet.<br>Ask Hiro to render something!</div>
-    </div>
-  </aside>
+        <div class="frame">
+          <div class="shellbar">
+            <div><div class="widget-kicker" id="widget-kicker">Waiting for render</div><div class="widget-title" id="widget-title">Hiro Live Canvas is standing by.</div></div>
+            <div class="widget-count"><div class="widget-updated" id="widget-updated">No render received yet</div><div class="widget-kicker" id="widget-count">0 renders in this view</div></div>
+          </div>
+          <div class="scroll">
+            <div class="placeholder" id="placeholder">
+              <div class="hero">
+                <section class="placeholder-main">
+                  <div><div class="eyebrow">Canvas brief</div><h3>Stage outputs that deserve a real working surface.</h3><p>Ask Hiro for a usage chart, research comparison board, document review table, pricing simulator, or any browser-native operator view.</p></div>
+                  <div class="prompts">
+                    <button class="prompt" type="button" data-prompt="Show me a usage chart on the canvas with total tokens, cost, and call volume by model."><strong>Usage board</strong><span>Telemetry snapshot for model usage and cost</span></button>
+                    <button class="prompt" type="button" data-prompt="Render a competitive comparison board on the canvas for the vendors we just discussed."><strong>Comparison board</strong><span>Structured research output with panels and tables</span></button>
+                    <button class="prompt" type="button" data-prompt="Create a review table on the canvas for the latest document and highlight the most important risks."><strong>Review table</strong><span>Document analysis that is easier to scan than chat text</span></button>
+                    <button class="prompt" type="button" data-prompt="Render an interactive calculator on the canvas for pricing and margin analysis."><strong>Interactive widget</strong><span>Browser-native form or calculator with inline JavaScript</span></button>
+                  </div>
+                  <p class="footnote">Prompt buttons copy a ready-to-send instruction into your clipboard. Paste it back into Hiro where you already work.</p>
+                </section>
+                <aside class="placeholder-side">
+                  <div><div class="eyebrow">Operator rules</div><ul class="ops"><li><strong>Use the canvas for dense work.</strong><p>Charts, tables, forms, and multi-panel boards belong here when chat would collapse the structure.</p></li><li><strong>Keep the chat clean.</strong><p>Use text chat for requests and decisions, then move the heavy visual output into this surface.</p></li><li><strong>Interactive scripts now execute.</strong><p>Inline scripts inside rendered widgets hydrate after mount, so calculators and custom controls work.</p></li></ul></div>
+                </aside>
+              </div>
+            </div>
+            <div class="widget-body" id="widget-body" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
 
-  <!-- CANVAS -->
-  <main class="canvas-area">
-    <div class="canvas-toolbar">
-      <div class="canvas-title" id="canvas-title">Waiting for Hiro…</div>
-      <div class="canvas-hint" id="canvas-hint">Try: "show me a usage chart"</div>
-    </div>
-    <div class="canvas-content">
-      <!-- placeholder shown until first widget -->
-      <div class="canvas-placeholder" id="canvas-placeholder">
-        <div class="icon">🎨</div>
-        <h2>Hiro Live Canvas</h2>
-        <p>Connected · Waiting for widgets from Hiro…<br>Try: <em>"render my usage chart"</em> in Telegram</p>
-      </div>
-      <div class="canvas-inner" id="canvas-inner">
-        <!-- widgets render here -->
-      </div>
-    </div>
-  </main>
+      <section class="deck">
+        <article class="deck-card"><div class="eyebrow">Render contract</div><h4>Shell-aware widget markup</h4><p>Hiro can render semantic HTML directly into the canvas without recreating the whole page chrome.</p><ul class="deck-list"><li>Use <code>canvas-report</code>, <code>canvas-grid</code>, <code>canvas-panel</code>, and <code>canvas-badge-row</code> for structured layouts.</li><li>Wrap large tables in <code>canvas-table-wrap</code> so they stay readable on smaller screens.</li><li>Use inline <code>&lt;script&gt;</code> tags for calculators, toggles, or custom interactions.</li></ul></article>
+        <article class="deck-card"><div class="eyebrow">Latest render</div><h4 id="latest-title">Nothing staged yet</h4><p id="latest-summary">Once Hiro pushes a widget, this panel tracks what changed and when it landed.</p><ul class="mini"><li id="latest-time">Last update: waiting for first render</li><li id="latest-stream">Socket state: booting</li><li id="latest-depth">History depth: 0</li></ul></article>
+        <article class="deck-card"><div class="eyebrow">Best use cases</div><h4>What this surface is for</h4><p>Canvas should feel like an operator workspace, not a marketing page and not a chat transcript.</p><ul class="deck-list"><li>Validation dashboards for mesh or research output</li><li>Structured source reviews and executive briefings</li><li>Interactive forms, calculators, and browser-native controls</li></ul></article>
+      </section>
+    </main>
+  </div>
 
-</div>
-
-<script>
-  const HOST = location.host;
-  const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${HOST}/canvas/ws`;
-
-  const statusBadge   = document.getElementById('status-badge');
-  const statusText    = document.getElementById('status-text');
-  const canvasTitle   = document.getElementById('canvas-title');
-  const canvasHint    = document.getElementById('canvas-hint');
-  const placeholder   = document.getElementById('canvas-placeholder');
-  const historyList   = document.getElementById('history-list');
-
-  let history = [];
-  let reconnectDelay = 1500;
-
-  function setStatus(state, text) {
-    statusBadge.className = `status-badge ${state}`;
-    statusText.textContent = text;
-  }
-
-  function formatTime(iso) {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
-  function renderWidget(entry, updateHistory = true) {
-    // Always look up the live element by ID (variable goes stale after replaceWith)
-    const existing = document.getElementById('canvas-inner');
-    const div = document.createElement('div');
-    div.className = 'canvas-inner';
-    div.id = 'canvas-inner';
-    div.innerHTML = entry.html;
-    if (existing) {
-      existing.replaceWith(div);
-    } else {
-      document.querySelector('.canvas-content').appendChild(div);
-    }
-
-    // Hide the placeholder
-    if (placeholder) placeholder.classList.add('hidden');
-
-    canvasTitle.textContent = entry.title || 'Widget';
-    canvasHint.textContent  = formatTime(entry.timestamp);
-
-    if (updateHistory) {
-      history.unshift(entry);
-      rebuildHistory();
-    }
-  }
-
-  function rebuildHistory() {
-    if (history.length === 0) {
-      historyList.innerHTML = '<div class="history-empty">No widgets yet.<br>Ask Hiro to render something!</div>';
-      return;
-    }
-
-    historyList.innerHTML = history.map((e, i) => `
-      <div class="history-item${i === 0 ? ' active' : ''}" onclick="loadHistoryItem(${i})">
-        <div class="item-title">${e.title || 'Widget'}</div>
-        <div class="item-time">${formatTime(e.timestamp)}</div>
-      </div>
-    `).join('');
-  }
-
-  window.loadHistoryItem = function(index) {
-    const entry = history[index];
-    if (!entry) return;
-    renderWidget(entry, false);
-    // Update active state
-    document.querySelectorAll('.history-item').forEach((el, i) => {
-      el.classList.toggle('active', i === index);
-    });
-  };
-
-  function connect() {
-    setStatus('connecting', 'Connecting…');
-    const ws = new WebSocket(WS_URL);
-
-    ws.onopen = () => {
-      setStatus('connected', 'Connected');
-      reconnectDelay = 1500;
-      console.log('[Canvas] WebSocket connected.');
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.type === 'widget') {
-          renderWidget(payload);
-        }
-      } catch (e) {
-        console.warn('[Canvas] Bad payload:', e);
-      }
-    };
-
-    ws.onclose = () => {
-      setStatus('disconnected', `Reconnecting in ${reconnectDelay / 1000}s…`);
-      setTimeout(() => {
-        reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
-        connect();
-      }, reconnectDelay);
-    };
-
-    ws.onerror = (err) => {
-      console.warn('[Canvas] WS error:', err);
-      ws.close();
-    };
-  }
-
-  connect();
-</script>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>
+    const WS_URL=`${location.protocol==="https:"?"wss":"ws"}://${location.host}/canvas/ws`;
+    const el=(id)=>document.getElementById(id);
+    const state={history:[],reconnectDelay:1500,reconnectTimer:null,socket:null,toastTimer:null,active:-1};
+    const ui={status:el("status"),statusText:el("status-text"),statusSubtext:el("status-subtext"),statusCode:el("status-code"),renderCount:el("render-count"),renderFocus:el("render-focus"),history:el("history"),streamPill:el("stream-pill"),widgetKicker:el("widget-kicker"),widgetTitle:el("widget-title"),widgetUpdated:el("widget-updated"),widgetCount:el("widget-count"),placeholder:el("placeholder"),widgetBody:el("widget-body"),latestTitle:el("latest-title"),latestSummary:el("latest-summary"),latestTime:el("latest-time"),latestStream:el("latest-stream"),latestDepth:el("latest-depth"),toast:el("toast"),copyLink:el("copy-link"),reconnect:el("reconnect"),prompts:Array.from(document.querySelectorAll("[data-prompt]"))};
+    const formatTime=(iso)=>{const d=new Date(iso);return Number.isNaN(d.getTime())?"Unknown time":d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"})};
+    function setStatus(mode,title,detail,code){ui.status.className=`status ${mode}`;ui.statusText.textContent=title;ui.statusSubtext.textContent=detail;ui.statusCode.textContent=code;ui.streamPill.textContent=`Stream: ${title}`;ui.latestStream.textContent=`Socket state: ${title}`}
+    function toast(message){ui.toast.textContent=message;ui.toast.classList.add("visible");if(state.toastTimer)clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>ui.toast.classList.remove("visible"),2200)}
+    function updateStats(title){ui.renderCount.textContent=String(state.history.length);ui.renderFocus.textContent=title||"Idle";ui.widgetCount.textContent=`${state.history.length} render${state.history.length===1?"":"s"} in this view`;ui.latestDepth.textContent=`History depth: ${state.history.length}`}
+    function updateLatest(entry){ui.latestTitle.textContent=entry.title||"Untitled widget";ui.latestSummary.textContent="Latest widget mounted in the active stage. Use render history on the left to revisit earlier outputs.";ui.latestTime.textContent=`Last update: ${formatTime(entry.timestamp)}`}
+    function hydrateScripts(container){Array.from(container.querySelectorAll("script")).forEach((oldScript)=>{const next=document.createElement("script");Array.from(oldScript.attributes).forEach((attr)=>next.setAttribute(attr.name,attr.value));next.textContent=oldScript.textContent||"";oldScript.replaceWith(next)})}
+    function renderHistory(){ui.history.innerHTML="";if(state.history.length===0){const empty=document.createElement("div");empty.className="history-empty";empty.textContent="No renders yet. Ask Hiro to show a chart, comparison board, review table, or briefing canvas.";ui.history.appendChild(empty);return}state.history.forEach((entry,index)=>{const item=document.createElement("button");item.type="button";item.className=`history-item${index===state.active?" active":""}`;const title=document.createElement("strong");title.className="history-title";title.textContent=entry.title||"Untitled widget";const summary=document.createElement("p");summary.textContent=index===0?"Current stage output":"Replay this render in the stage";const row=document.createElement("div");row.className="history-row";const time=document.createElement("span");time.textContent=formatTime(entry.timestamp);const pos=document.createElement("span");pos.textContent=`#${state.history.length-index}`;row.append(time,pos);item.append(title,summary,row);item.addEventListener("click",()=>renderWidget(entry,false,index));ui.history.appendChild(item)})}
+    function renderWidget(entry,addToHistory=true,index=0){ui.widgetBody.innerHTML=entry.html||"";hydrateScripts(ui.widgetBody);ui.placeholder.classList.add("hidden");ui.widgetKicker.textContent="Active render";ui.widgetTitle.textContent=entry.title||"Untitled widget";ui.widgetUpdated.textContent=`Rendered at ${formatTime(entry.timestamp)}`;if(addToHistory){state.history.unshift(entry);state.active=0}else{state.active=index}updateStats(entry.title||"Widget");updateLatest(entry);renderHistory()}
+    function isBootstrap(payload){return payload&&payload.type==="widget"&&payload.title==="Canvas Ready"}
+    function scheduleReconnect(){if(state.reconnectTimer)clearTimeout(state.reconnectTimer);setStatus("disconnected",`Reconnecting in ${Math.round(state.reconnectDelay/100)/10}s`,"The stream dropped. Hiro will reconnect automatically.","socket retry");state.reconnectTimer=setTimeout(()=>{state.reconnectDelay=Math.min(state.reconnectDelay*1.5,15000);connect()},state.reconnectDelay)}
+    function connect(){if(state.reconnectTimer)clearTimeout(state.reconnectTimer);if(state.socket){state.socket.onclose=null;state.socket.onerror=null;if(state.socket.readyState===WebSocket.OPEN||state.socket.readyState===WebSocket.CONNECTING)state.socket.close()}setStatus("connecting","Connecting...","Preparing the operator stream","ws connect");state.socket=new WebSocket(WS_URL);state.socket.onopen=()=>{state.reconnectDelay=1500;setStatus("connected","Connected","Live canvas stream is ready for Hiro output","ws open")};state.socket.onmessage=(event)=>{try{const payload=JSON.parse(event.data);if(payload.type==="widget"&&!isBootstrap(payload))renderWidget(payload,true,0)}catch(error){console.warn("[Canvas] Invalid payload",error)}};state.socket.onclose=()=>scheduleReconnect();state.socket.onerror=()=>state.socket&&state.socket.close()}
+    async function copyText(text,message){try{await navigator.clipboard.writeText(text);toast(message)}catch(error){console.warn("[Canvas] Clipboard write failed",error);toast("Clipboard access failed in this browser.")}}
+    ui.copyLink.addEventListener("click",()=>copyText(location.href,"Canvas link copied."));
+    ui.reconnect.addEventListener("click",()=>{state.reconnectDelay=1500;connect();toast("Canvas stream reconnect requested.")});
+    ui.prompts.forEach((button)=>button.addEventListener("click",()=>{const prompt=button.getAttribute("data-prompt");if(prompt)copyText(prompt,"Prompt copied. Paste it into Hiro.")}));
+    connect();renderHistory();updateStats("Idle");
+  </script>
 </body>
 </html>

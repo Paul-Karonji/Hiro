@@ -5,24 +5,23 @@ import type { RuntimeTool } from "../core/types";
 export const renderCanvasDeclaration = {
   name: "render_canvas",
   description:
-    "Push an interactive HTML/JS widget, chart, table, or form to the Hiro Live Canvas browser page. " +
-    "Use this to create data visualisations, formatted tables, progress dashboards, interactive forms, " +
-    "or any rich content that would be better experienced in a browser than in Telegram text. " +
-    "The HTML is injected directly into the canvas content area — keep it self-contained with inline styles. " +
-    "You may use inline <script> tags for interactivity. Avoid external CDN scripts unless absolutely necessary.",
+    "Push an interactive HTML, chart, table, board, or form to the Hiro Live Canvas browser page. " +
+    "Use this when the result should be reviewed, compared, operated, or explored in a browser instead of pasted into chat. " +
+    "The widget is mounted inside Hiro's operator shell, so prefer semantic HTML over recreating a whole page. " +
+    "Inline <script> tags are supported and execute after mount. Avoid external CDN scripts unless absolutely necessary.",
   parameters: {
     type: "object",
     properties: {
       html: {
         type: "string",
         description:
-          "The complete, self-contained HTML/JS snippet to render. " +
-          "Use inline styles. Dark theme preferred (background colours like #1a1a2e, text like #e2e0ff). " +
-          "For charts, use inline SVG or canvas elements. For tables, use semantic <table> tags.",
+          "A self-contained HTML snippet for the canvas body. " +
+          "Use semantic markup with Hiro's built-in utility classes when helpful: canvas-report, canvas-stack, canvas-grid, canvas-panel, canvas-label, canvas-stat, canvas-badge-row, canvas-badge, canvas-table-wrap, canvas-actions, canvas-note, and canvas-divider. " +
+          "Do not recreate full-page chrome or reset body styles. For charts, use inline SVG, canvas, or lightweight inline CSS/JS.",
       },
       title: {
         type: "string",
-        description: "A short human-readable title for the widget (e.g. 'Token Usage Chart', 'Task List'). Shown in the canvas toolbar.",
+        description: "A short title for the widget, such as 'Token Usage Board' or 'Vendor Comparison Matrix'.",
       },
     },
     required: ["html"],
@@ -41,6 +40,6 @@ export const renderCanvasTool: RuntimeTool = {
 
     broadcastToCanvas({ type: "widget", html, title });
 
-    return `✅ Widget "${title}" pushed to the Live Canvas. Open ${config.PUBLIC_BASE_URL}/canvas to see it.`;
+    return `Widget "${title}" pushed to the Live Canvas. Open ${config.PUBLIC_BASE_URL}/canvas to see it.`;
   },
 };

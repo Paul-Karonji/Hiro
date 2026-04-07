@@ -5,14 +5,15 @@ import type { RuntimeConfig } from "./types";
 
 const runtimeConfigPath = path.resolve(process.cwd(), "data/runtime_config.json");
 const DEFAULT_MESH_COLLABORATION_MODELS = [
-  "alibaba:qwen3.6-plus",
-  "openrouter:qwen/qwen3.6-plus:free",
+  "resurge:grok-4-thinking",
   "google:gemini-2.5-flash",
-  "mistral:mistral-large-latest",
   "groq:llama-3.3-70b-versatile",
+  "mistral:mistral-large-latest",
   "resurge:grok-4.1-thinking",
+  "alibaba:qwen3.6-plus",
   "alibaba:qwen3.5-plus",
   "openrouter:qwen/qwen3.5-plus-02-15",
+  "openrouter:qwen/qwen3.6-plus:free",
 ];
 
 function unique(values: string[]) {
@@ -21,7 +22,7 @@ function unique(values: string[]) {
 
 export function createDefaultRuntimeConfig(): RuntimeConfig {
   return {
-    defaultActiveModel: config.ACTIVE_MODEL || "alibaba:qwen3.6-plus",
+    defaultActiveModel: config.ACTIVE_MODEL || "resurge:grok-4-thinking",
     enabledProviders: ["google", "openai", "anthropic", "mistral", "groq", "deepseek", "resurge", "openrouter", "alibaba"],
     channel: config.ACTIVE_CHANNEL,
     memory: "default-memory",
