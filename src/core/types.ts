@@ -38,7 +38,15 @@ export interface AgentDirectiveArtifact {
   content: string;
 }
 
-export type AgentDirective = AgentDirectiveSpeak | AgentDirectiveNotify | AgentDirectiveArtifact;
+export interface AgentDirectiveFile {
+  type: "file";
+  filePath: string;
+  filename?: string;
+  mediaType?: string;
+  caption?: string;
+}
+
+export type AgentDirective = AgentDirectiveSpeak | AgentDirectiveNotify | AgentDirectiveArtifact | AgentDirectiveFile;
 
 export interface ToolTraceEntry {
   name: string;
@@ -125,6 +133,7 @@ export interface RuntimeConfig {
   };
   mesh: {
     maxSteps: number;
+    collaborationModels?: string[];
   };
 }
 

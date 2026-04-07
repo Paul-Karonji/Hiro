@@ -18,7 +18,14 @@ import { getAppContext } from "../core/appContext";
 import type { ChannelService } from "../plugins/types";
 import { formatForWhatsApp } from "./whatsappFormatter";
 import { setLatestQR } from "./whatsappQR";
+import { toUserVisibleMeshProgress } from "./meshProgress";
+import {
+  persistMeshFailureToSession,
+  persistMeshRequestToSession,
+  persistMeshResultToSession,
+} from "./meshSession";
 import { buildModelsCatalogMarkdown, resolveModelSelection } from "./modelCatalog";
+import type { AgentDirectiveFile } from "../core/types";
 
 // Command Handlers
 import { handleStatusCommand } from "./commands/status";
@@ -89,6 +96,26 @@ export function createWhatsAppChannelService(): ChannelService {
     if (!sock) return;
     const formattedText = formatForWhatsApp(text);
     await sock.sendMessage(jid, { text: formattedText });
+  };
+
+  const sendFilesToWhatsApp = async (jid: string, files: AgentDirectiveFile[]) => {
+    if (!sock) return;
+
+    for (const file of files) {
+      try {
+        const buffer = fs.readFileSync(file.filePath);
+        await sock.sendMessage(jid, {
+          document: buffer,
+          mimetype: file.mediaType || "application/octet-stream",
+          fileName: file.filename || path.basename(file.filePath),
+          caption: file.caption,
+        });
+      } catch (error: any) {
+        console.error("[WhatsApp] File delivery error:", error);
+        const label = file.filename || file.filePath;
+        await sendTextMsg(jid, `Failed to send file: ${label}. ${error?.message || String(error)}`);
+      }
+    }
   };
 
   async function connectToWhatsApp() {
@@ -205,7 +232,7 @@ export function createWhatsAppChannelService(): ChannelService {
         const caption = msg.message?.imageMessage?.caption || "Please analyze this image.";
         const session = resolveWhatsAppConversationSession(jid);
 
-        const { text: responseText, speakText } = await processMessageWithEngine(caption, false, {
+        const { text: responseText, speakText, files } = await processMessageWithEngine(caption, false, {
           sessionId: session.id,
           enableSpeech: true,
           images: [{ data: buffer, mediaType }],
@@ -213,6 +240,10 @@ export function createWhatsAppChannelService(): ChannelService {
 
         if (responseText.trim().length > 0) {
           await sendTextMsg(jid, responseText);
+        }
+
+        if (files.length > 0) {
+          await sendFilesToWhatsApp(jid, files);
         }
 
         if (speakText) {
@@ -277,7 +308,7 @@ export function createWhatsAppChannelService(): ChannelService {
 
         const framedInput = `[WhatsApp Voice Transcription: "${transcript}"]\n\nNote: speak_response is NOT available on WhatsApp. Do NOT output "Done." - write your full answer in plain text. It will be automatically read aloud.`;
         const session = resolveWhatsAppConversationSession(jid);
-        let { text: responseText } = await processMessageWithEngine(framedInput, false, {
+        let { text: responseText, files } = await processMessageWithEngine(framedInput, false, {
           sessionId: session.id,
           enableSpeech: false,
           metadata: { channel: "whatsapp" },
@@ -293,6 +324,7 @@ export function createWhatsAppChannelService(): ChannelService {
           );
           if (!isDone(retry.text) && retry.text.trim().length > 0) {
             responseText = retry.text;
+            files = retry.files;
           }
         }
 
@@ -313,6 +345,10 @@ export function createWhatsAppChannelService(): ChannelService {
             console.warn("[WhatsApp] TTS failed, sending text only:", ttsErr.message);
           }
         }
+
+        if (files.length > 0) {
+          await sendFilesToWhatsApp(jid, files);
+        }
         return;
       } else if (messageType === "documentMessage") {
         await sock.sendMessage(jid, { text: "Reading document..." });
@@ -325,7 +361,7 @@ export function createWhatsAppChannelService(): ChannelService {
         const caption = (msg.message?.documentMessage as any)?.caption || `Please analyze this document: ${filename}`;
         const session = resolveWhatsAppConversationSession(jid);
 
-        const { text: responseText, speakText } = await processMessageWithEngine(caption, false, {
+        const { text: responseText, speakText, files } = await processMessageWithEngine(caption, false, {
           sessionId: session.id,
           enableSpeech: true,
           documents: [{ data: buffer, mediaType, filename }],
@@ -333,6 +369,10 @@ export function createWhatsAppChannelService(): ChannelService {
 
         if (responseText.trim().length > 0) {
           await sendTextMsg(jid, responseText);
+        }
+
+        if (files.length > 0) {
+          await sendFilesToWhatsApp(jid, files);
         }
 
         if (speakText) {
@@ -413,36 +453,57 @@ export function createWhatsAppChannelService(): ChannelService {
 
       if (command === "mesh" && commandArg) {
         const goal = commandArg;
-        await sendTextMsg(jid, "Starting Mesh workflow...");
+        const session = resolveWhatsAppConversationSession(jid);
+        const defaultDriverModel = getActiveModelName();
+        let lastMeshProgressMessage = "";
+        const reportMeshProgress = async (message: string) => {
+          const visibleMessage = toUserVisibleMeshProgress(message);
+          if (!visibleMessage || visibleMessage === lastMeshProgressMessage) {
+            return;
+          }
+
+          const shouldSend = visibleMessage.startsWith("Planning mesh workflow")
+            || visibleMessage.startsWith("Mesh FSM initialized")
+            || visibleMessage.startsWith("Starting step:")
+            || visibleMessage.startsWith("Step REJECTED:")
+            || visibleMessage.startsWith("Model failover:")
+            || visibleMessage.startsWith("Routing error:")
+            || visibleMessage.startsWith("No recovery route")
+            || visibleMessage.includes("violently failed")
+            || visibleMessage.startsWith("Mesh workflow finished");
+
+          if (!shouldSend) {
+            return;
+          }
+
+          lastMeshProgressMessage = visibleMessage;
+          await sendTextMsg(jid, `Mesh status:\n${visibleMessage}`);
+        };
 
         try {
-          const result = await getAppContext().mesh.runGoal(goal, {
-            reportProgress: async (message) => {
-              await sendTextMsg(jid, message);
-            },
+          persistMeshRequestToSession({
+            sessionId: session.id,
+            goal,
+            defaultDriverModel,
           });
-
-          await sendTextMsg(jid, `Mesh workflow complete.\nWorkflow ID: ${result.workflowId}\nStatus: ${result.status}\n\n${result.summary}`);
-
-          if (result.artifacts && result.artifacts.length > 0) {
-            await sendTextMsg(jid, "*Workflow Deliverable Summaries*");
-            for (const artifact of result.artifacts) {
-              const content = artifact.summary;
-              const isCode = content.includes("<!DOCTYPE html>") || content.includes("</html>");
-              const ext = isCode ? "html" : "md";
-              const safeTitle = artifact.title.replace(/[^a-z0-9]/gi, "_").toLowerCase();
-              const filename = `${artifact.role}_${safeTitle}.${ext}`;
-              const buffer = Buffer.from(content, "utf-8");
-
-              await sock.sendMessage(jid, {
-                document: buffer,
-                mimetype: "text/plain",
-                fileName: filename,
-                caption: `[${artifact.role.toUpperCase()}] ${artifact.title}`
-              });
-            }
-          }
+          const result = await getAppContext().mesh.runGoal(goal, { reportProgress: reportMeshProgress });
+          persistMeshResultToSession({
+            sessionId: session.id,
+            goal,
+            defaultDriverModel,
+            result,
+          });
+          const finalOutput = result.summary?.trim()
+            || (result.status === "completed" ? "Mesh completed with no output." : `Mesh ended with status: ${result.status}`);
+          await sendTextMsg(jid, finalOutput);
         } catch (e: any) {
+          persistMeshFailureToSession({
+            sessionId: session.id,
+            goal,
+            defaultDriverModel,
+            errorMessage: e?.message || String(e),
+          });
+          await reportMeshProgress("Mesh workflow finished with status: failed");
           await sendTextMsg(jid, `Mesh workflow failed: ${e.message}`);
         }
         return;
@@ -496,7 +557,7 @@ export function createWhatsAppChannelService(): ChannelService {
       await sock.sendMessage(jid, { text: "thinking..." });
       const session = resolveWhatsAppConversationSession(jid);
 
-      const { text: responseText } = await processMessageWithEngine(text, false, {
+      const { text: responseText, files } = await processMessageWithEngine(text, false, {
         sessionId: session.id,
         enableSpeech: false,
         metadata: { channel: "whatsapp" },
@@ -504,6 +565,10 @@ export function createWhatsAppChannelService(): ChannelService {
 
       if (responseText.trim().length > 0) {
         await sendTextMsg(jid, responseText);
+      }
+
+      if (files.length > 0) {
+        await sendFilesToWhatsApp(jid, files);
       }
     } catch (error: any) {
       console.error("[WhatsApp Bot Error]", error);

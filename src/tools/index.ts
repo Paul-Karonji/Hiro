@@ -2,6 +2,7 @@ import { getTimeDeclaration, getTimeExecutor } from "./get_time";
 import { rememberFactDeclaration, rememberFactExecutor } from "./remember_fact";
 import { searchHistoryDeclaration, searchHistoryExecutor } from "./search_history";
 import { searchMemoryDeclaration, searchMemoryExecutor } from "./search_memory";
+import { exportFileDeclaration, exportFileExecutor, sendFileToUserDeclaration, sendFileToUserExecutor } from "./export_file";
 import { logActivityDeclaration, logActivityExecutor } from "./log_activity";
 import { queryAnalyticsDeclaration, queryAnalyticsExecutor } from "./query_analytics";
 import { speakResponseDeclaration } from "./speak";
@@ -23,6 +24,8 @@ export const tools: any[] = [
   logActivityDeclaration,
   queryAnalyticsDeclaration,
   speakResponseDeclaration,  // Voice output tool
+  exportFileDeclaration,
+  sendFileToUserDeclaration,
   shellToolDefinition,       // OS commands
   ...fileToolsDefinitions,   // Basic I/O
   ...webToolsDefinitions,    // Web Scraper
@@ -56,6 +59,28 @@ export async function executeTool(name: string, args: any): Promise<any> {
   }
   if (name === "query_analytics") {
     return await queryAnalyticsExecutor(args);
+  }
+  if (name === "export_file") {
+    return await exportFileExecutor(args, {
+      sessionId: PRIMARY_SESSION_ID,
+      sessionType: "primary",
+      session: { id: PRIMARY_SESSION_ID } as any,
+      modelUsed: "unknown",
+      request: { sessionId: PRIMARY_SESSION_ID, userText: "", documents: [], images: [] } as any,
+      directives: [],
+      trace: [],
+    });
+  }
+  if (name === "send_file_to_user") {
+    return await sendFileToUserExecutor(args, {
+      sessionId: PRIMARY_SESSION_ID,
+      sessionType: "primary",
+      session: { id: PRIMARY_SESSION_ID } as any,
+      modelUsed: "unknown",
+      request: { sessionId: PRIMARY_SESSION_ID, userText: "", documents: [], images: [] } as any,
+      directives: [],
+      trace: [],
+    });
   }
   
   if (name === "run_shell_command") return await runShellCommand(args);

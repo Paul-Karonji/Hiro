@@ -8,6 +8,8 @@ const DEFAULT_TOOL_ALLOWLIST = [
   "search_documents",
   "search_web",
   "read_webpage",
+  "export_file",
+  "send_file_to_user",
   "read_file",
   "list_directory",
   "write_file",
@@ -41,10 +43,10 @@ export class SwarmCoordinator {
     let baseInstructions = `You are the ${role.toUpperCase()}. Turn the task into an actionable output aligned with your role. Be concrete and produce working steps or detailed content.\nCRITICAL: You MUST output the FULL content of your deliverables directly in your final textual response. Do not just summarize what you did.`;
 
     if (role.toLowerCase().includes("review") || role.toLowerCase().includes("evaluator")) {
-      baseInstructions += `\n\nCRITICAL REVIEW INSTRUCTION: Critique the prior artifacts. Identify gaps, bugs, or missing pieces. If the work is acceptable, you MUST include the exact text [APPROVED] in your final response. If the work needs to be sent back for revision, you MUST include the actual text [REJECTED] followed by your critique.`;
+      baseInstructions += `\n\nCRITICAL REVIEW INSTRUCTION: Critique the prior artifacts. Identify gaps, bugs, or missing pieces. Your response must contain your full review content, and the FINAL LINE MUST be exactly [APPROVED] or [REJECTED]. Never omit the decision marker and never return an empty response.`;
     } else {
       // For general roles in an FSM, if they finish their task, they implicitly approve passing it to the next step.
-      baseInstructions += `\n\nCRITICAL ROUTING INSTRUCTION: Once you have confidently finished your task, you MUST append the exact text [APPROVED] at the end of your response to signal the workflow controller to proceed to the next step. If you encountered an unrecoverable failure and need the workflow to abort, output [REJECTED].`;
+      baseInstructions += `\n\nCRITICAL ROUTING INSTRUCTION: Once you have confidently finished your task, your FINAL LINE MUST be exactly [APPROVED] to signal the workflow controller to proceed to the next step. If you encountered an unrecoverable failure and need the workflow to abort, your FINAL LINE MUST be exactly [REJECTED]. Never omit the decision marker and never return an empty response.`;
     }
 
     return `${baseInstructions}\n\nGoal: ${goal}\n${deliverableText}\n\nPrior working artifacts (Use these as context/dependencies):\n\n${formatArtifacts(priorArtifacts)}`;
@@ -56,6 +58,7 @@ export class SwarmCoordinator {
     deliverable?: string | null;
     parentSessionId: string;
     priorArtifacts?: Array<{ role: SwarmRole; content: string }>;
+    modelOverride?: string | null;
     metadata?: Record<string, unknown> | null;
   }) {
     const session = this.sessions.createSwarmSession({
@@ -64,7 +67,7 @@ export class SwarmCoordinator {
       instructions: `You are the ${input.role.toUpperCase()}.`,
       parentSessionId: input.parentSessionId,
       allowedTools: DEFAULT_TOOL_ALLOWLIST,
-      modelOverride: this.runtimeConfig.roleModelOverrides[input.role as any] ?? null,
+      modelOverride: input.modelOverride ?? this.runtimeConfig.roleModelOverrides[input.role as any] ?? null,
       metadata: input.metadata ?? null,
     });
 

@@ -11,7 +11,14 @@ import { config } from "../config";
 import { getAppContext } from "../core/appContext";
 import type { ChannelService } from "../plugins/types";
 import { sendFormattedMessage } from "./formatter";
+import { renderMeshProgressSummary, toUserVisibleMeshProgress } from "./meshProgress";
+import {
+  persistMeshFailureToSession,
+  persistMeshRequestToSession,
+  persistMeshResultToSession,
+} from "./meshSession";
 import { buildModelsCatalogMarkdown, resolveModelSelection } from "./modelCatalog";
+import type { AgentDirectiveFile } from "../core/types";
 
 function resolveTelegramConversationSession(ctx: any) {
   return getAppContext().sessions.resolveUserSession({
@@ -22,6 +29,21 @@ function resolveTelegramConversationSession(ctx: any) {
       ? String((ctx.message as any).message_thread_id)
       : null,
   });
+}
+
+async function sendTelegramFiles(ctx: any, files: AgentDirectiveFile[]) {
+  for (const file of files) {
+    try {
+      await ctx.replyWithDocument(
+        new InputFile(file.filePath, file.filename),
+        file.caption ? { caption: file.caption } : undefined,
+      );
+    } catch (error: any) {
+      console.error("[Bot] File delivery error:", error);
+      const label = file.filename || file.filePath;
+      await ctx.reply(`❌ Failed to send file: ${label}. ${error?.message || String(error)}`);
+    }
+  }
 }
 
 export function createTelegramChannelService(): ChannelService {
@@ -102,46 +124,75 @@ export function createTelegramChannelService(): ChannelService {
       return;
     }
 
-    try {
-      await ctx.replyWithChatAction("typing");
-      const result = await getAppContext().mesh.runGoal(goal, {
-        reportProgress: async (message) => {
-          await sendFormattedMessage(ctx, message);
-        },
-      });
+    const session = resolveTelegramConversationSession(ctx);
+    const defaultDriverModel = getActiveModelName();
+    const progressLines: string[] = [];
+    let progressMessage: any = null;
+    let lastRenderedProgress = "";
 
-      await sendFormattedMessage(ctx, [
-        `Mesh workflow complete.`,
-        `Workflow ID: ${result.workflowId}`,
-        `Status: ${result.status}`,
-        "",
-        result.summary,
-      ].join("\n"));
-
-      // Send the final artifact, or all artifacts if they are concise
-      if (result.artifacts && result.artifacts.length > 0) {
-        await ctx.reply("📦 **Workflow Deliverable Summaries**", { parse_mode: "Markdown" });
-        for (const artifact of result.artifacts) {
-          try {
-            const content = artifact.summary;
-            const isCode = content.includes("<!DOCTYPE html>") || content.includes("</html>");
-            const ext = isCode ? "html" : "md";
-            const safeTitle = artifact.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-            const filename = `${artifact.role}_${safeTitle}.${ext}`;
-
-            const buffer = Buffer.from(content, "utf-8");
-            
-            await ctx.replyWithDocument(new InputFile(buffer, filename), {
-              caption: `[${artifact.role.toUpperCase()}] ${artifact.title}`
-            });
-          } catch (e) {
-            console.error("Failed to send artifact doc", e);
-            await ctx.reply(`❌ Failed to attach document for [${artifact.role.toUpperCase()}]`);
-          }
-        }
+    const reportMeshProgress = async (message: string) => {
+      const visibleMessage = toUserVisibleMeshProgress(message);
+      if (!visibleMessage) {
+        return;
       }
+
+      if (progressLines[progressLines.length - 1] === visibleMessage) {
+        return;
+      }
+
+      progressLines.push(visibleMessage);
+      const renderedProgress = renderMeshProgressSummary(progressLines);
+      if (renderedProgress === lastRenderedProgress) {
+        return;
+      }
+
+      if (!progressMessage) {
+        progressMessage = await ctx.reply(renderedProgress);
+        lastRenderedProgress = renderedProgress;
+        return;
+      }
+
+      try {
+        await ctx.api.editMessageText(ctx.chat!.id, progressMessage.message_id, renderedProgress);
+        lastRenderedProgress = renderedProgress;
+      } catch (error: any) {
+        const errorText = error?.description || error?.message || "";
+        if (typeof errorText === "string" && /message is not modified/i.test(errorText)) {
+          return;
+        }
+
+        progressMessage = await ctx.reply(renderedProgress);
+        lastRenderedProgress = renderedProgress;
+      }
+    };
+
+    try {
+      persistMeshRequestToSession({
+        sessionId: session.id,
+        goal,
+        defaultDriverModel,
+      });
+      await ctx.replyWithChatAction("typing");
+      const result = await getAppContext().mesh.runGoal(goal, { reportProgress: reportMeshProgress });
+      persistMeshResultToSession({
+        sessionId: session.id,
+        goal,
+        defaultDriverModel,
+        result,
+      });
+      const finalOutput = result.summary?.trim()
+        || (result.status === "completed" ? "Mesh completed with no output." : `Mesh ended with status: ${result.status}`);
+
+      await sendFormattedMessage(ctx, finalOutput);
     } catch (error: any) {
       console.error("[Bot] Mesh workflow error:", error);
+      persistMeshFailureToSession({
+        sessionId: session.id,
+        goal,
+        defaultDriverModel,
+        errorMessage: error?.message || String(error),
+      });
+      await reportMeshProgress("Mesh workflow finished with status: failed");
       await ctx.reply(`❌ Mesh workflow failed: ${error?.message || String(error)}`);
     }
   });
@@ -233,13 +284,17 @@ export function createTelegramChannelService(): ChannelService {
       await ctx.reply(`🎙️ _Heard:_ "${transcript}"`, { parse_mode: "Markdown" });
       const session = resolveTelegramConversationSession(ctx);
 
-      const { text, speakText } = await processMessageWithEngine(transcript, true, {
+      const { text, speakText, files } = await processMessageWithEngine(transcript, true, {
         sessionId: session.id,
         enableSpeech: true,
       });
 
       if (text.trim().length > 0) {
         await sendFormattedMessage(ctx, text);
+      }
+
+      if (files.length > 0) {
+        await sendTelegramFiles(ctx, files);
       }
 
       if (speakText) {
@@ -272,7 +327,7 @@ export function createTelegramChannelService(): ChannelService {
       const userText = ctx.message.caption || "Please analyze this image.";
       const session = resolveTelegramConversationSession(ctx);
 
-      const { text, speakText } = await processMessageWithEngine(userText, false, {
+      const { text, speakText, files } = await processMessageWithEngine(userText, false, {
         sessionId: session.id,
         enableSpeech: true,
         images: [{ data: imageBuffer, mediaType }],
@@ -280,6 +335,10 @@ export function createTelegramChannelService(): ChannelService {
 
       if (text.trim().length > 0) {
         await sendFormattedMessage(ctx, text);
+      }
+
+      if (files.length > 0) {
+        await sendTelegramFiles(ctx, files);
       }
 
       if (speakText) {
@@ -319,7 +378,7 @@ export function createTelegramChannelService(): ChannelService {
       const userText = ctx.message.caption || `Please analyze this document: ${filename}`;
       const session = resolveTelegramConversationSession(ctx);
 
-      const { text, speakText } = await processMessageWithEngine(userText, false, {
+      const { text, speakText, files } = await processMessageWithEngine(userText, false, {
         sessionId: session.id,
         enableSpeech: true,
         documents: [{ data: documentBuffer, mediaType, filename }],
@@ -327,6 +386,10 @@ export function createTelegramChannelService(): ChannelService {
 
       if (text.trim().length > 0) {
         await sendFormattedMessage(ctx, text);
+      }
+
+      if (files.length > 0) {
+        await sendTelegramFiles(ctx, files);
       }
 
       if (speakText) {
@@ -353,13 +416,17 @@ export function createTelegramChannelService(): ChannelService {
       indicator.start("typing");
       const session = resolveTelegramConversationSession(ctx);
 
-      const { text, speakText } = await processMessageWithEngine(ctx.message.text, false, {
+      const { text, speakText, files } = await processMessageWithEngine(ctx.message.text, false, {
         sessionId: session.id,
         enableSpeech: true,
       });
 
       if (text.trim().length > 0) {
         await sendFormattedMessage(ctx, text);
+      }
+
+      if (files.length > 0) {
+        await sendTelegramFiles(ctx, files);
       }
 
       if (speakText) {

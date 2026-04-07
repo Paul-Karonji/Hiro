@@ -45,6 +45,35 @@ type StepArtifacts = {
   toolCallNames: string[];
 };
 
+const SWARM_REJECTION_SIGNAL_PATTERNS = [
+  /\b(?:could not|couldn't|cannot|can't|unable to|failed to)\b/i,
+  /\bno (?:usable|relevant|credible|verifiable|sufficient|supporting) (?:source|sources|data|evidence|records|results)\b/i,
+  /\binsufficient (?:source|sources|data|evidence|coverage|material)\b/i,
+  /\boff[- ]scope\b/i,
+  /\bfinal decision\s*:\s*rejected\b/i,
+  /\bstatus\s*:\s*rejected\b/i,
+  /\bnot approved\b/i,
+  /\bneeds? (?:revision|rework|more verification)\b/i,
+  /\bsend (?:it )?back for revision\b/i,
+  /\bdoes not meet (?:the )?(?:criteria|requirements|standard)\b/i,
+  /\brate[- ]limit(?:ed|ing)?\b/i,
+  /\btry again later\b/i,
+  /^error:/i,
+];
+
+const SWARM_APPROVAL_SIGNAL_PATTERNS = [
+  /\bfinal decision\s*:\s*approved\b/i,
+  /\bstatus\s*:\s*approved\b/i,
+  /\bthis (?:report|draft|deliverable|work) is approved\b/i,
+  /\bapproval granted\b/i,
+  /\bmeets? (?:all )?(?:the )?(?:success criteria|criteria|requirements|standard)\b/i,
+  /\bpasses? (?:review|validation|verification|qa)\b/i,
+  /\bready to proceed\b/i,
+  /\bvalidated and accurate\b/i,
+  /\baccurate and within scope\b/i,
+  /\bacceptable as (?:the )?final deliverable\b/i,
+];
+
 function collectStepArtifacts(steps: any[] | undefined): StepArtifacts {
   const toolResults: string[] = [];
   const toolResultsForSwarm: string[] = [];
@@ -79,6 +108,90 @@ export function isPseudoToolOutput(text: string): boolean {
     || /DueSync\.[A-Za-z_]+\(/i.test(trimmed)
     || /print\s*\(\s*DueSync\./i.test(trimmed)
     || /```(?:json|python)?[\s\S]*?(tool_code|DueSync\.|print\s*\()/i.test(trimmed);
+}
+
+function hasExplicitSwarmRoutingMarker(text: string) {
+  return /\[(approved|rejected)\]/i.test(text);
+}
+
+function stripSwarmRoutingMarkers(text: string) {
+  return text.replace(/\[(approved|rejected)\]/gi, "").trim();
+}
+
+const SWARM_PROVISIONAL_RESPONSE_PATTERNS = [
+  /^(let me|i(?:'ll| will)|i need to|i should|next[, ]+i(?:'ll| will))/i,
+  /\bbefore producing\b/i,
+  /\bbefore finali[sz]ing\b/i,
+  /\bneed to verify\b/i,
+  /\bverify the current status\b/i,
+  /\bstill verifying\b/i,
+  /\bwill verify\b/i,
+  /\bthen produce\b/i,
+];
+
+export function isSwarmProvisionalResponse(text: string) {
+  const stripped = stripSwarmRoutingMarkers(text).replace(/\s+/g, " ").trim();
+  if (!stripped || stripped.length > 240) {
+    return false;
+  }
+
+  return SWARM_PROVISIONAL_RESPONSE_PATTERNS.some((pattern) => pattern.test(stripped));
+}
+
+function isReviewRole(role: string | null) {
+  const normalizedRole = (role ?? "").toLowerCase();
+  return normalizedRole.includes("review") || normalizedRole.includes("evaluator");
+}
+
+export function inferSwarmRoutingMarker(text: string, role: string | null): "[APPROVED]" | "[REJECTED]" | null {
+  const trimmed = text.trim();
+  if (!trimmed || hasExplicitSwarmRoutingMarker(trimmed)) {
+    return null;
+  }
+
+  if (isPseudoToolOutput(trimmed)) {
+    return "[REJECTED]";
+  }
+
+  if (SWARM_REJECTION_SIGNAL_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+    return "[REJECTED]";
+  }
+
+  if (isReviewRole(role)) {
+    if (SWARM_APPROVAL_SIGNAL_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+      return "[APPROVED]";
+    }
+    return null;
+  }
+
+  const normalized = trimmed.replace(/\s+/g, " ").trim();
+  if (normalized.length < 80) {
+    return null;
+  }
+
+  return "[APPROVED]";
+}
+
+export function normalizeSwarmRoutingOutput(text: string, role: string | null) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  if (isSwarmProvisionalResponse(trimmed)) {
+    return `${stripSwarmRoutingMarkers(trimmed)}\n\n[REJECTED]`;
+  }
+
+  if (hasExplicitSwarmRoutingMarker(trimmed)) {
+    return trimmed;
+  }
+
+  const inferredMarker = inferSwarmRoutingMarker(trimmed, role);
+  if (!inferredMarker) {
+    return trimmed;
+  }
+
+  return `${trimmed}\n\n${inferredMarker}`;
 }
 
 function buildImageContentParts(images: AgentImageInput[] | undefined) {
@@ -274,6 +387,33 @@ export class AgentRuntime {
     return synthResult.text?.trim() || "";
   }
 
+  private async synthesizeSwarmToolResults(
+    modelId: string,
+    session: SessionRecord,
+    request: AgentTurnRequest,
+    usableResults: string[],
+  ) {
+    const combinedContent = usableResults.map((r, i) => `[Source ${i + 1}]:\n${r.substring(0, 6000)}`).join("\n\n");
+    const roleName = session.role?.toUpperCase() || "SPECIALIST";
+    const synthResult = await generateText({
+      model: this.deps.providerRouter.resolveChatModel(modelId),
+      system: [
+        `You are the ${roleName} in a multi-step workflow.`,
+        "Convert the gathered tool results into the actual deliverable for this step.",
+        "Do not mention tool calls, JSON schemas, or internal traces.",
+        "Write the real final content directly.",
+        "If the step is complete, end with [APPROVED].",
+        "If the sources are insufficient or off-scope, explain the gap and end with [REJECTED].",
+      ].join(" "),
+      messages: [{
+        role: "user" as const,
+        content: `Workflow step instructions:\n${request.userText}\n\nRetrieved source material:\n\n${combinedContent}\n\nProduce the final step output now.`,
+      }],
+    } as any);
+
+    return synthResult.text?.trim() || "";
+  }
+
   private async runToolRecoveryPass(
     modelId: string,
     request: AgentTurnRequest,
@@ -341,12 +481,16 @@ CAPABILITIES:
 - You can use tools, memory, and analytics to complete tasks
 - You can push interactive HTML/JS widgets to the Live Canvas at ${config.PUBLIC_BASE_URL}/canvas using render_canvas
 - You can search previously ingested PDF, DOCX, and text attachments with search_documents
+- You can create downloadable files for the user with export_file and send them back into the current chat with send_file_to_user
 
 CORE RULES:
 - NEVER announce that you are going to execute a tool. DO NOT say "I will search the web now" or "Performing a web search". Just execute the tool silently.
 - IMPORTANT: Typing your intention in text DOES NOT execute actions. You MUST invoke the internal JSON tool schema. If you just type text, you will fail the task.
 - When the user asks to "render", "show", "chart", "visualise", "draw", or "display" anything - use the render_canvas tool with a self-contained HTML/JS snippet.
 - When the user asks you to speak, say something aloud, or reply with voice, call speak_response.
+- When the user asks you to create, save, export, draft, or generate a file or document, use export_file instead of only pasting the content in chat.
+- In normal Telegram or WhatsApp chat, created files are expected to be attached back to the user by default. Only suppress delivery when the user explicitly asked to save locally or not send the file.
+- Use sendToUser in export_file only when you need to override the default behavior, or use send_file_to_user for an existing file.
 - Speech text must be natural spoken language with no markdown or bullet points.
 - Never claim you are text-only.
 `;
@@ -523,12 +667,28 @@ CORE RULES:
       console.log(`[Runtime] toolCalls=[${toolCallNames.join(",")}] toolResults=${toolResults.length} usableLen=${toolResults.filter(r => !/^error:/i.test(r.trim())).length}`);
 
       if (session.type === "swarm") {
-        if (toolResultsForSwarm.length > 0) {
-          if (finalText.trim().length === 0) {
-            finalText = toolResultsForSwarm.join("\n\n");
-          } else {
-            finalText += "\n\n" + toolResultsForSwarm.join("\n\n");
+        const isErrorResult = (s: string) => /^error:/i.test(s.trim()) || s.trim().startsWith("Error:");
+        const usableResults = toolResults.filter((r) => !isErrorResult(r));
+
+        if (finalText.trim().length === 0 && usableResults.length > 0) {
+          console.log("[Runtime] Swarm empty text after tool calls - running synthesis pass");
+          try {
+            const synthesized = await this.synthesizeSwarmToolResults(modelId, session, request, usableResults);
+            if (synthesized) {
+              finalText = synthesized;
+              console.log(`[Runtime] Swarm synthesis pass succeeded (${finalText.length} chars)`);
+            }
+          } catch (synthErr: any) {
+            console.error("[Runtime] Swarm synthesis pass failed:", synthErr?.message);
           }
+        }
+
+        if (finalText.trim().length === 0 && toolResultsForSwarm.length > 0) {
+          finalText = "[REJECTED] I gathered external data, but I could not convert it into a valid workflow deliverable.";
+        }
+
+        if (finalText.trim().length === 0) {
+          finalText = "No response generated.";
         }
       } else if (session.type === "primary") {
         const isErrorResult = (s: string) => /^error:/i.test(s.trim()) || s.trim().startsWith("Error:");
@@ -599,6 +759,10 @@ CORE RULES:
       }
     } else if (finalText.trim().length === 0) {
       finalText = "No response generated.";
+    }
+
+    if (session.type === "swarm") {
+      finalText = normalizeSwarmRoutingOutput(finalText, session.role);
     }
 
     this.deps.memory.addMessage("model", finalText, {

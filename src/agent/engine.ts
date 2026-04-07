@@ -1,10 +1,11 @@
 import { getAppContext } from "../core/appContext";
-import type { AgentTurnRequest } from "../core/types";
+import type { AgentDirectiveFile, AgentTurnRequest } from "../core/types";
 import { PRIMARY_SESSION_ID } from "../memory/sqlite";
 
 export interface AgentResponse {
   text: string;
   speakText: string | null;
+  files: AgentDirectiveFile[];
 }
 
 export function getActiveModelName() {
@@ -51,9 +52,11 @@ export async function processMessageWithEngine(
   });
 
   const speakDirective = result.directives.find((directive) => directive.type === "speak");
+  const fileDirectives = result.directives.filter((directive): directive is AgentDirectiveFile => directive.type === "file");
 
   return {
     text: result.text,
     speakText: speakDirective?.type === "speak" ? speakDirective.text : null,
+    files: fileDirectives,
   };
 }

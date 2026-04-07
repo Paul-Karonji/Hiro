@@ -1,6 +1,7 @@
 import { getAppContext } from "../core/appContext";
 import type { RuntimeTool } from "../core/types";
 import { findRelevantImageMemories } from "../agent/imageMemory";
+import { exportFileDeclaration, exportFileExecutor, sendFileToUserDeclaration, sendFileToUserExecutor } from "../tools/export_file";
 import { fileToolsDefinitions, deleteFile, listDirectory, readFile, writeFile } from "../tools/files";
 import { getTimeDeclaration } from "../tools/get_time";
 import { logActivityDeclaration } from "../tools/log_activity";
@@ -110,6 +111,8 @@ export const builtinToolsPlugin: ToolPlugin = {
         return "Voice message queued for delivery to the user.";
       }),
       runtimeTool(shellToolDefinition, async (args) => runShellCommand(args)),
+      runtimeTool(exportFileDeclaration, async (args, context) => exportFileExecutor(args, context)),
+      runtimeTool(sendFileToUserDeclaration, async (args, context) => sendFileToUserExecutor(args, context)),
       runtimeTool(fileToolsDefinitions[0], async (args) => readFile(args)),
       runtimeTool(fileToolsDefinitions[1], async (args) => writeFile(args)),
       runtimeTool(fileToolsDefinitions[2], async (args) => listDirectory(args)),

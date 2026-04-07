@@ -6,6 +6,8 @@ test("resolveModelSelection accepts friendly aliases, labels, and bare model nam
   assert.equal(resolveModelSelection("qwen"), "alibaba:qwen3.6-plus");
   assert.equal(resolveModelSelection("Qwen 3.6 Plus"), "alibaba:qwen3.6-plus");
   assert.equal(resolveModelSelection("qwenor"), "openrouter:qwen/qwen3.6-plus:free");
+  assert.equal(resolveModelSelection("qwen35"), "alibaba:qwen3.5-plus");
+  assert.equal(resolveModelSelection("qwen35or"), "openrouter:qwen/qwen3.5-plus-02-15");
   assert.equal(resolveModelSelection("grok-3-mini"), "resurge:grok-3-mini");
 });
 

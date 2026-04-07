@@ -1,21 +1,107 @@
 # Hiro
 
-Hiro is a self-hosted personal AI agent for Telegram and WhatsApp. It supports chat, voice, memory, web research, scheduled tasks, MCP tools, model switching, and a browser-based operator canvas.
+Hiro is a self-hosted personal AI agent for Telegram and WhatsApp. It supports normal chat, voice, memory-backed conversations, document ingestion and retrieval, live web research, model switching, file generation and attachment delivery, autonomous mesh workflows, MCP tools, scheduled tasks, and a browser-based operator canvas.
 
-This repository is safe to publish only if you keep deployment secrets out of git and configure access control for operator-facing routes.
+This repository is safe to publish only if you keep secrets out of git and keep the operator-facing routes protected.
 
-## Features
+## What Hiro Can Do
 
-- Telegram and WhatsApp channels
-- Single-owner access controls for both chat surfaces
-- Voice input and voice replies
-- Document ingestion for PDF, DOCX, and text uploads
-- Memory-backed conversations and summaries
-- Searchable stored document text for later retrieval
-- Web research and built-in tools
-- Optional remote MCP tools
+- Telegram, WhatsApp, or dual-channel operation
+- Single-owner access control on both chat surfaces
+- Text chat plus voice input and voice replies
+- Image and document analysis from chat attachments
+- PDF, DOCX, and text ingestion with searchable extracted text
+- Memory-backed conversations, summaries, and searchable history
+- Built-in web research plus optional remote MCP tools
+- Model switching from chat with friendly aliases or exact `provider:model-id`
+- Normal chat file generation with attachment delivery back to Telegram or WhatsApp
+- Markdown, text, HTML, JSON, CSV, and Word-compatible `.doc` export
+- Live browser canvas for rich visual output
 - Scheduled and proactive tasks
-- Live browser canvas for visual output
+- Multi-model mesh workflows with visible progress, failover, and final-only output
+
+## Mesh Workflow
+
+`/mesh <goal>` launches a multi-step workflow instead of a normal one-shot reply.
+
+Current mesh behavior:
+
+- Mesh shows progress milestones while it runs
+- Mesh sends only the latest final result back to chat, not every intermediate artifact
+- Mesh stores a workflow record in session memory so normal chat can continue from the mesh result
+- Mesh rotates worker steps across a collaboration pool of models
+- Mesh can fail over to the next model on retryable provider errors such as rate limits, token-budget failures, and upstream provider errors
+- Mesh planner and step routing are hardened against malformed structured output, missing markers, and self-looping rejection routes
+
+Default mesh collaboration pool comes from [src/core/runtimeConfig.ts](./src/core/runtimeConfig.ts) and currently includes:
+
+- `alibaba:qwen3.6-plus`
+- `openrouter:qwen/qwen3.6-plus:free`
+- `google:gemini-2.5-flash`
+- `mistral:mistral-large-latest`
+- `groq:llama-3.3-70b-versatile`
+- `resurge:grok-4.1-thinking`
+- `alibaba:qwen3.5-plus`
+- `openrouter:qwen/qwen3.5-plus-02-15`
+
+Mesh uses the active model as the starting planner/default driver context, but worker steps can be routed across the collaboration pool.
+
+## Files And Documents
+
+Hiro has two different document flows:
+
+Incoming attachments:
+
+- Uploaded PDF, DOCX, and text files are parsed
+- Extracted text is stored in SQLite and indexed for later retrieval
+- Hiro can search those stored documents later with `search_documents`
+- Legacy incoming `.doc` files are not parsed
+
+Generated files:
+
+- In normal chat, Hiro can create user-facing files with `export_file`
+- Hiro can attach those files back to the current Telegram or WhatsApp chat with `send_file_to_user`
+- Generated files are written under `data/`
+- Supported output formats are:
+  - Markdown: `.md`
+  - Plain text: `.txt`
+  - HTML: `.html`
+  - JSON: `.json`
+  - CSV: `.csv`
+  - Word-compatible `.doc`
+
+Current `.doc` notes:
+
+- Hiro generates a Word-compatible RTF-backed `.doc`
+- Basic headings, bullets, bold text, Unicode punctuation, and markdown tables are converted into document formatting
+- This is not true `.docx` generation
+
+## Chat Commands
+
+Telegram supports slash commands directly. WhatsApp supports the same command words with or without a leading slash.
+
+Conversation:
+
+- `/new` - start a fresh conversation thread
+- `/compact` - force memory compaction
+- `/status` - view background agents and system health
+- `/usage` - view recent token and speech usage
+
+Models:
+
+- `/model` - show the active model
+- `/models` - browse model aliases and exact ids
+- `/setmodel alias`
+- `/setmodel provider:model-name`
+
+Workflow:
+
+- `/mesh <goal>` - launch a mesh workflow
+
+Files:
+
+- `/files` - list files in `data/`
+- `/download <filename>` - send a file from `data/`
 
 ## Security Model
 
@@ -59,7 +145,14 @@ OPERATOR_TOKEN=
 WEBHOOK_SECRET=
 
 ACTIVE_MODEL=<provider:model-id>
+PROACTIVE_TIMEZONE=Africa/Nairobi
 ```
+
+`ACTIVE_CHANNEL` supports:
+
+- `telegram`
+- `whatsapp`
+- `dual`
 
 Providers and services:
 
@@ -83,14 +176,51 @@ GOOGLE_TTS_VOICE_NAME=<voice-name>
 GOOGLE_TTS_LANGUAGE_CODE=<language-code>
 GOOGLE_TTS_MONTHLY_CHAR_LIMIT=<monthly-char-limit>
 GOOGLE_TTS_MAX_BYTES_PER_REQUEST=<max-bytes-per-request>
+MCP_CONFIG_JSON=
 MCP_CONFIG_JSON_B64=
 ```
 
 Model selection notes:
 
-- Hiro accepts exact `provider:model-id` values, not only the short aliases shown in the chat menu.
-- The local process reads from `.env`; deployed Fly instances read from Fly secrets.
-- Keep the local `.env` and deployed secrets aligned if you want model behavior to match between local and production.
+- Hiro accepts exact `provider:model-id` values, not only the short aliases shown in chat
+- The local process reads from `.env`
+- Deployed environments read from deployment secrets
+- Keep local and deployed secrets aligned if you want the same model behavior everywhere
+
+## Runtime Config Overrides
+
+Hiro loads optional runtime overrides from `data/runtime_config.json`.
+
+This lets you change:
+
+- default active model
+- enabled providers
+- channel mode
+- tool plugins
+- per-role model overrides
+- session reset behavior
+- agent step limits
+- mesh max steps
+- mesh collaboration model pool
+
+Example:
+
+```json
+{
+  "defaultActiveModel": "google:gemini-2.5-flash",
+  "roleModelOverrides": {
+    "reviewer": "mistral:mistral-large-latest"
+  },
+  "mesh": {
+    "maxSteps": 8,
+    "collaborationModels": [
+      "google:gemini-2.5-flash",
+      "mistral:mistral-large-latest",
+      "groq:llama-3.3-70b-versatile"
+    ]
+  }
+}
+```
 
 ## Local Development
 
@@ -115,12 +245,13 @@ Do not run multiple Telegram polling processes against the same bot token.
 
 ## Deployment Notes
 
-- Set a unique app/domain name for your own environment.
-- Do not commit deployment logs, generated state, or copied secrets.
-- Keep `data/` out of git. It may contain SQLite state and WhatsApp auth files.
-- On Fly, `/app/data` is mounted persistent state. That volume contains the SQLite database and WhatsApp auth/session files.
-- To preserve WhatsApp auth, deploy in place to the existing app and volume. Do not destroy the volume, wipe `/app/data`, or recreate the app unless you intend to re-link WhatsApp.
-- If you deploy on Fly for a new environment, customize [fly.toml](./fly.toml) with your own app name before deploying.
+- Set a unique app or domain name for your own environment
+- Do not commit deployment logs, generated state, or copied secrets
+- Keep `data/` out of git. It may contain SQLite state, generated files, runtime config, and WhatsApp auth files
+- On Fly, `/app/data` is mounted persistent state. That volume contains SQLite state, generated files, and WhatsApp auth/session files
+- To preserve WhatsApp auth, deploy in place to the existing app and volume
+- Do not destroy the volume, wipe `/app/data`, or recreate the app unless you intend to re-link WhatsApp
+- If you deploy on Fly for a new environment, customize [fly.toml](./fly.toml) with your own app name before deploying
 
 Example deploy flow:
 
@@ -137,16 +268,10 @@ flyctl deploy -a hiro
 flyctl status -a hiro
 ```
 
-Recommended Fly secret parity:
+Recommended secret parity:
 
-- Keep `ACTIVE_MODEL`, provider API keys, and channel/auth secrets consistent with your local `.env` when you expect local and deployed behavior to match.
-- After changing secrets, restart or redeploy so Hiro reloads them.
-
-Document handling notes:
-
-- Uploaded PDF, DOCX, and text files are parsed and Hiro stores the extracted text in SQLite.
-- Hiro stores extracted text, summaries, and search index entries, not the raw original binary blob.
-- Legacy `.doc` files are not parsed in the current implementation.
+- Keep `ACTIVE_MODEL`, provider API keys, and channel/auth secrets consistent with your local `.env` when you expect local and deployed behavior to match
+- After changing secrets, restart or redeploy so Hiro reloads them
 
 ## Webhook Example
 

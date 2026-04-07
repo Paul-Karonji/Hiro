@@ -25,6 +25,22 @@ const MODEL_ENTRIES: ModelEntry[] = [
     aliases: ["qwenfree", "orqwen", "qwenrouter"],
   },
   {
+    id: "alibaba:qwen3.5-plus",
+    alias: "qwen35",
+    label: "Qwen 3.5 Plus (Alibaba)",
+    note: "Qwen 3.5 on Alibaba Model Studio",
+    section: "Recommended",
+    aliases: ["q35", "qwen35ali", "alibabaqwen35"],
+  },
+  {
+    id: "openrouter:qwen/qwen3.5-plus-02-15",
+    alias: "qwen35or",
+    label: "Qwen 3.5 Plus (OpenRouter)",
+    note: "OpenRouter Qwen 3.5 route",
+    section: "OpenRouter",
+    aliases: ["qwen35router", "orqwen35"],
+  },
+  {
     id: "google:gemini-2.5-flash",
     alias: "gemini",
     label: "Gemini 2.5 Flash",

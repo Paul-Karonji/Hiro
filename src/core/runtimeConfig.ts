@@ -4,6 +4,16 @@ import { config } from "../config";
 import type { RuntimeConfig } from "./types";
 
 const runtimeConfigPath = path.resolve(process.cwd(), "data/runtime_config.json");
+const DEFAULT_MESH_COLLABORATION_MODELS = [
+  "alibaba:qwen3.6-plus",
+  "openrouter:qwen/qwen3.6-plus:free",
+  "google:gemini-2.5-flash",
+  "mistral:mistral-large-latest",
+  "groq:llama-3.3-70b-versatile",
+  "resurge:grok-4.1-thinking",
+  "alibaba:qwen3.5-plus",
+  "openrouter:qwen/qwen3.5-plus-02-15",
+];
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
@@ -33,6 +43,7 @@ export function createDefaultRuntimeConfig(): RuntimeConfig {
     },
     mesh: {
       maxSteps: 6,
+      collaborationModels: DEFAULT_MESH_COLLABORATION_MODELS,
     },
   };
 }
@@ -70,6 +81,7 @@ export function loadRuntimeConfig(): RuntimeConfig {
       },
       mesh: {
         maxSteps: parsed.mesh?.maxSteps ?? defaults.mesh.maxSteps,
+        collaborationModels: unique(parsed.mesh?.collaborationModels || defaults.mesh.collaborationModels || []),
       },
     };
   } catch (error) {
