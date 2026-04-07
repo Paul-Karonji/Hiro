@@ -26,6 +26,7 @@ import {
 } from "./meshSession";
 import { buildModelsCatalogMarkdown, resolveModelSelection } from "./modelCatalog";
 import type { AgentDirectiveFile } from "../core/types";
+import { buildCapabilitiesReport, resolveActiveRuntimeTools } from "../agent/capabilities";
 
 // Command Handlers
 import { handleStatusCommand } from "./commands/status";
@@ -419,6 +420,23 @@ export function createWhatsAppChannelService(): ChannelService {
       if (command === "usage" && isBareCommand) {
         const dummyCtx: any = { reply: (msg: string) => sendTextMsg(jid, msg) };
         await handleUsageCommand(dummyCtx);
+        return;
+      }
+
+      if (command === "capabilities" && isBareCommand) {
+        const session = resolveWhatsAppConversationSession(jid);
+        const { activeTools } = resolveActiveRuntimeTools(getAppContext().toolRegistry, {
+          session,
+          enableSpeech: true,
+          metadata: { channel: "whatsapp" },
+        });
+
+        await sendTextMsg(jid, buildCapabilitiesReport({
+          session,
+          tools: activeTools,
+          metadata: { channel: "whatsapp" },
+          modelName: getActiveModelName(),
+        }));
         return;
       }
 

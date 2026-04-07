@@ -1,6 +1,5 @@
 import { generateText } from "ai";
 import { getAppContext } from "../core/appContext";
-import { config } from "../config";
 import { parseModelId } from "../core/modelState";
 import { loadSkillsAsPrompt } from "../tools/skills";
 import { compactConversationInBackground, extractCoreFactsInBackground } from "./backgroundTasks";
@@ -29,6 +28,8 @@ import { DefaultMemoryService } from "../memory/service";
 import { PRIMARY_SESSION_ID, type SessionRecord, dbQueries } from "../memory/sqlite";
 import type { SessionService } from "../sessions/service";
 import { extractDocumentText } from "../documents/extract";
+import { buildCapabilitiesPrompt, resolveActiveRuntimeTools, resolveSessionPlatform } from "./capabilities";
+import type { RuntimeTool } from "../core/types";
 
 type AgentRuntimeDependencies = {
   memory: DefaultMemoryService;
@@ -472,16 +473,14 @@ export class AgentRuntime {
     return session;
   }
 
-  private buildSystemInstruction(session: SessionRecord, request: AgentTurnRequest) {
-    let systemInstruction = `You are Hiro. You are NOT an AI assistant - you are a partner. You have BOTH text and voice capabilities.
+  private buildSystemInstruction(session: SessionRecord, request: AgentTurnRequest, activeTools: RuntimeTool[]) {
+    let systemInstruction = `You are Hiro. You are NOT an AI assistant - you are a partner. You use the capabilities and tools actually mounted for this session right now.
 
-CAPABILITIES:
-- You can respond with text (default)
-- You can respond with a spoken voice message using the speak_response tool
-- You can use tools, memory, and analytics to complete tasks
-- You can push interactive HTML/JS widgets to the Live Canvas at ${config.PUBLIC_BASE_URL}/canvas using render_canvas
-- You can search previously ingested PDF, DOCX, and text attachments with search_documents
-- You can create downloadable files for the user with export_file and send them back into the current chat with send_file_to_user
+${buildCapabilitiesPrompt({
+  session,
+  tools: activeTools,
+  metadata: request.metadata ?? null,
+})}
 
 CORE RULES:
 - NEVER announce that you are going to execute a tool. DO NOT say "I will search the web now" or "Performing a web search". Just execute the tool silently.
@@ -522,7 +521,7 @@ CORE RULES:
       systemInstruction += "\nCRITICAL CONTEXT: The user just sent a voice message. Reply with voice unless they explicitly asked for text only.\n";
     }
 
-    if (request.metadata?.channel === "whatsapp") {
+    if (resolveSessionPlatform(session, request.metadata ?? null) === "whatsapp") {
       systemInstruction += "\nCHANNEL: WhatsApp. The speak_response tool is NOT available here. NEVER output 'Done.' as a response - always write your full answer as plain text. Voice synthesis is handled automatically by the system after you respond.\n";
     }
 
@@ -606,16 +605,14 @@ CORE RULES:
     const directives: AgentTurnResult["directives"] = [];
     const trace: AgentTurnResult["trace"] = [];
 
-    const explicitAllowlist = session.allowed_tools
-      ? [...session.allowed_tools]
-      : this.deps.toolRegistry.getTools().map((tool) => tool.definition.name);
-
-    if (request.enableSpeech === false) {
-      const index = explicitAllowlist.indexOf("speak_response");
-      if (index >= 0) {
-        explicitAllowlist.splice(index, 1);
-      }
-    }
+    const {
+      activeToolNames: explicitAllowlist,
+      activeTools,
+    } = resolveActiveRuntimeTools(this.deps.toolRegistry, {
+      session,
+      enableSpeech: request.enableSpeech,
+      metadata: request.metadata ?? null,
+    });
 
     const toolContext: ToolExecutionContext = {
       sessionId: session.id,
@@ -632,7 +629,7 @@ CORE RULES:
     let modelId = requestedModelId;
     try {
       const generation = await this.generateTextWithAlibabaToolFallback(requestedModelId, {
-        system: this.buildSystemInstruction(session, request),
+        system: this.buildSystemInstruction(session, request, activeTools),
         messages,
         tools: this.deps.toolRegistry.buildAiTools(toolContext, explicitAllowlist),
         maxSteps: this.deps.runtimeConfig.agent.maxSteps,

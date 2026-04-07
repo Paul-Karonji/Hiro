@@ -19,6 +19,7 @@ import {
 } from "./meshSession";
 import { buildModelsCatalogMarkdown, resolveModelSelection } from "./modelCatalog";
 import type { AgentDirectiveFile } from "../core/types";
+import { buildCapabilitiesReport, resolveActiveRuntimeTools } from "../agent/capabilities";
 
 function resolveTelegramConversationSession(ctx: any) {
   return getAppContext().sessions.resolveUserSession({
@@ -88,6 +89,21 @@ export function createTelegramChannelService(): ChannelService {
   bot.command("new", (ctx) => handleNewCommand(ctx, { sessionId: resolveTelegramConversationSession(ctx).id }));
   bot.command("compact", (ctx) => handleCompactCommand(ctx, { sessionId: resolveTelegramConversationSession(ctx).id }));
   bot.command("usage", (ctx) => handleUsageCommand(ctx));
+  bot.command("capabilities", async (ctx) => {
+    const session = resolveTelegramConversationSession(ctx);
+    const { activeTools } = resolveActiveRuntimeTools(getAppContext().toolRegistry, {
+      session,
+      enableSpeech: true,
+      metadata: { channel: "telegram" },
+    });
+
+    await sendFormattedMessage(ctx, buildCapabilitiesReport({
+      session,
+      tools: activeTools,
+      metadata: { channel: "telegram" },
+      modelName: getActiveModelName(),
+    }));
+  });
 
   bot.command("help", async (ctx) => {
     await ctx.reply([
@@ -112,6 +128,7 @@ export function createTelegramChannelService(): ChannelService {
       "",
       "*System*",
       "/status — View background agents & system health",
+      "/capabilities — Show Hiro's active capabilities",
       "/usage — View token, memory, and speech usage stats",
       "/help — Show this help menu",
     ].join("\n"), { parse_mode: "Markdown" });
@@ -459,6 +476,7 @@ export function createTelegramChannelService(): ChannelService {
           { command: "mesh", description: "Launch an autonomous AI workflow" },
           { command: "help", description: "Show all available commands" },
           { command: "status", description: "View background agents & system health" },
+          { command: "capabilities", description: "Show Hiro's active capabilities" },
           { command: "model", description: "Show the currently active AI model" },
           { command: "models", description: "List all available AI models" },
           { command: "setmodel", description: "Switch active model (usage: /setmodel provider:name)" },
