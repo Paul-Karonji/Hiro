@@ -3,7 +3,7 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'replace-with-your-app-name'
+app = 'hiro'
 primary_region = 'jnb'
 
 [build]

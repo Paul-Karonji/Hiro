@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { getAppContext } from "../core/appContext";
 import { generateText } from "ai";
@@ -42,7 +42,7 @@ export class SkillManager {
 
   private loadSkills() {
     try {
-      const files = require("fs").readdirSync(SKILLS_DIR);
+      const files = readdirSync(SKILLS_DIR);
       for (const file of files) {
         if (file.endsWith(".md")) {
           const skillId = file.slice(0, -3);
