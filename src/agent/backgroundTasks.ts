@@ -88,13 +88,41 @@ export async function compactConversationInBackground(sessionId: string = PRIMAR
     const currentSummary = app.memory.getLatestSummary(sessionId);
     const conversationLog = oldestMessages.map((message) => `${message.role.toUpperCase()}: ${message.content}`).join("\n");
 
+    // Extract tool calls and results for better context
+    const toolInteractions = extractToolInteractions(oldestMessages);
+    const toolContext = toolInteractions.length > 0 
+      ? `\n\nTool interactions:\n${toolInteractions.join("\n")}` 
+      : "";
+
     const response = await generateText({
       model: app.providerRouter.resolveChatModel(app.modelState.getCurrentModel()),
-      system: "You are a background memory processor that compresses chat history into a concise durable summary.",
+      system: `You are a background memory processor that compresses chat history into a structured summary.
+      
+Create a summary using this exact format:
+[CONTEXT COMPACTION] Earlier turns in this conversation were compacted to save context space. 
+The summary below describes work that was already completed, and the current session state may still 
+reflect that work (for example, files may already be changed). Use the summary and the current state 
+to continue from where things left off, and avoid repeating work:
+
+**Goal:**
+[State the primary objective or user's main goal in this conversation segment]
+
+**Progress:**
+[Summarize what has been accomplished, key findings, and current status]
+
+**Decisions:**
+[List important decisions made, choices selected, or approaches taken]
+
+**Files:**
+[Note any files created, modified, or referenced. Include file paths if available]
+
+**Next Steps:**
+[Indicate what work remains or what should be done next]
+
+Keep each section concise but informative. Preserve technical details and specific outcomes.`,
       prompt: `
-Create a concise, comprehensive summary of the following conversation chunk.
-${currentSummary ? `Consider this previous summary context: ${currentSummary}\n` : ""}
-Summarize the key events, topics discussed, and conclusions reached so nothing important is forgotten. Omit pleasantries.
+${currentSummary ? `Previous summary context for continuity:\n${currentSummary}\n\n` : ""}
+Analyze this conversation segment and create a structured summary:${toolContext}
 
 Conversation:
 ${conversationLog}
@@ -105,8 +133,33 @@ ${conversationLog}
     app.memory.addSummary(newSummary, oldestMessages.length, sessionId);
     await app.memory.storeSemanticMemory(`summary-${Date.now()}`, newSummary);
 
-    console.log("[Memory] Auto-compaction complete.");
+    console.log("[Memory] Auto-compaction complete with structured format.");
   } catch (error) {
     console.error("[Memory] Compaction failed silently.", error);
   }
+}
+
+function extractToolInteractions(messages: any[]): string[] {
+  const interactions: string[] = [];
+  
+  for (const message of messages) {
+    if (message.metadata?.tool_calls) {
+      const toolCalls = message.metadata.tool_calls as any[];
+      for (const call of toolCalls) {
+        interactions.push(`- ${call.function?.name || 'unknown_tool'}: ${call.function?.arguments || '{}'}`);
+      }
+    }
+    
+    if (message.metadata?.tool_results) {
+      const results = message.metadata.tool_results as any[];
+      for (const result of results) {
+        const output = typeof result.output === 'string' 
+          ? result.output.slice(0, 200) + (result.output.length > 200 ? '...' : '')
+          : JSON.stringify(result.output).slice(0, 200) + '...';
+        interactions.push(`  Result: ${output}`);
+      }
+    }
+  }
+  
+  return interactions;
 }

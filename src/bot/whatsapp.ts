@@ -168,6 +168,7 @@ export function createWhatsAppChannelService(): ChannelService {
         console.log("[WhatsApp] Connected successfully.");
         isReady = true;
         await hydrateAllowedJids();
+        setTimeout(() => hydrateAllowedJids().catch(() => {}), 4000);
       }
     });
 
@@ -184,7 +185,10 @@ export function createWhatsAppChannelService(): ChannelService {
         // Learn both forms and only accept messages from the configured owner chat.
         if (!isAllowedRemoteJid(jid)) {
           if (jid.endsWith("@lid")) {
-            await hydrateAllowedJids();
+            rememberAllowedJid(sock?.user?.lid);
+            if (!isAllowedRemoteJid(jid)) {
+              await hydrateAllowedJids();
+            }
           }
         }
         if (!isAllowedRemoteJid(jid)) {

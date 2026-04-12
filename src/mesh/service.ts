@@ -5,8 +5,10 @@ import type { ActiveModelState } from "../core/modelState";
 import type { ProviderRouter } from "../core/providerRouter";
 import type { MeshPlan, MeshPlanStep, RuntimeConfig, SwarmRole } from "../core/types";
 import { DefaultMemoryService } from "../memory/service";
+import { PRIMARY_SESSION_ID } from "../memory/sqlite";
 import type { SessionService } from "../sessions/service";
 import type { SwarmCoordinator } from "../swarm/coordinator";
+import { considerSkillCreation } from "../tools/skills";
 
 const rawMeshStepSchema = z.object({
   id: z.string().trim().min(1),
@@ -412,6 +414,10 @@ const RETRYABLE_MESH_MODEL_ERROR_PATTERNS = [
   /network error/i,
   /\b429\b/i,
   /\b503\b/i,
+  /invalid character.*looking for beginning/i,
+  /invalid json response/i,
+  /unexpected token.*json/i,
+  /json parse error/i,
 ];
 
 const RETRYABLE_MESH_PLANNER_ERROR_PATTERNS = [
@@ -808,6 +814,25 @@ export class MeshWorkflowService {
       terminalMessage,
     });
     await reportProgress(`Mesh workflow finished with status: ${finalStatus}`);
+
+    // Auto-create skill from successful mesh workflows
+    if (finalStatus === "completed" && plan.steps.length >= 3) {
+      try {
+        const steps = artifacts.map(a => ({
+          tool: a.title,
+          input: a.summary,
+        }));
+        
+        await considerSkillCreation(
+          plan.goal || "Mesh workflow task",
+          steps,
+          finalSummary,
+          PRIMARY_SESSION_ID
+        );
+      } catch (error) {
+        console.warn("[Mesh] Failed to auto-create skill:", error);
+      }
+    }
 
     return {
       workflowId,

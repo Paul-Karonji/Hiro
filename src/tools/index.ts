@@ -13,6 +13,7 @@ import { webToolsDefinitions, searchWeb, readWebpage } from "./web_search";
 import { executeMcpTool, mcpDynamicTools } from "./mcp_bridge";
 import { scheduleToolsDefinitions, scheduleTask, listScheduledTasks, deleteScheduledTask } from "./schedule";
 import { missionsToolsDefinitions, createMission, breakdownMission, updateTaskStatus, addMissionContext, listActiveMissions } from "./missions";
+import { skillsTool, handleManageSkills } from "./skills";
 import { PRIMARY_SESSION_ID } from "../memory/sqlite";
 
 export const tools: any[] = [
@@ -31,6 +32,7 @@ export const tools: any[] = [
   ...webToolsDefinitions,    // Web Scraper
   ...scheduleToolsDefinitions, // Proactive scheduling
   ...missionsToolsDefinitions, // Long-term Goal tracking
+  skillsTool,                // Dynamic skills system
 ];
 
 // Returns static tools + any dynamic MCP tools loaded on boot
@@ -101,6 +103,18 @@ export async function executeTool(name: string, args: any): Promise<any> {
   if (name === "update_task_status") return await updateTaskStatus(args);
   if (name === "add_mission_context") return await addMissionContext(args);
   if (name === "list_active_missions") return await listActiveMissions();
+
+  if (name === "manage_skills") {
+    return await handleManageSkills(args, {
+      sessionId: PRIMARY_SESSION_ID,
+      sessionType: "primary",
+      session: { id: PRIMARY_SESSION_ID } as any,
+      modelUsed: "unknown",
+      request: { sessionId: PRIMARY_SESSION_ID, userText: "", documents: [], images: [] } as any,
+      directives: [],
+      trace: [],
+    });
+  }
 
   // If this is a dynamic MCP tool, proxy it to the remote server
   if (name.startsWith("mcp_")) {
