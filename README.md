@@ -1,6 +1,6 @@
 # Hiro
 
-Hiro is a self-hosted personal AI agent for Telegram and WhatsApp. It supports normal chat, voice, memory-backed conversations, document ingestion and retrieval, live web research, model switching, file generation and attachment delivery, autonomous mesh workflows, MCP tools, scheduled tasks, and a browser-based operator canvas.
+Hiro is a self-hosted personal AI agent for Telegram and WhatsApp. It supports normal chat, voice, memory-backed conversations, document ingestion and retrieval, live web research, model switching, file generation and attachment delivery, autonomous mesh workflows, MCP tools, scheduled tasks, a dynamic skills system, and a browser-based operator canvas.
 
 This repository is safe to publish only if you keep secrets out of git and keep the operator-facing routes protected.
 
@@ -19,6 +19,8 @@ This repository is safe to publish only if you keep secrets out of git and keep 
 - Live browser canvas for rich visual output
 - Scheduled and proactive tasks
 - Multi-model mesh workflows with visible progress, failover, and final-only output
+- Dynamic skills system with self-improvement and automatic skill generation from successful workflows
+- Structured context compression that preserves goal, progress, decisions, files, and next steps across long conversations
 
 ## Mesh Workflow
 
@@ -304,6 +306,44 @@ Example:
 }
 ```
 
-## Custom Skills
+## Skills System
 
-Custom prompt fragments can be placed in `data/skills/` as Markdown files. Treat that directory as trusted local operator input, not as a public extension surface.
+Hiro includes a dynamic skills system that creates, stores, and improves reusable task patterns.
+
+### How It Works
+
+- Skills are stored as Markdown files in `data/skills/` with YAML frontmatter metadata
+- Each skill tracks usage count, version, category, and tags
+- Skills improve automatically based on usage patterns
+- Successful mesh workflows with 3+ steps auto-generate new skills
+
+### Using Skills From Chat
+
+Use the `manage_skills` tool directly in conversation:
+
+| Action | Description |
+|--------|-------------|
+| `list` | List all skills, optionally filtered by category |
+| `search` | Search skills by name, description, tags, or content |
+| `get` | View full detail of a specific skill |
+| `execute` | Apply a skill pattern to a given context |
+| `create` | Create a new skill from a goal, execution trace, and result |
+| `improve` | Improve an existing skill with feedback |
+
+### Manual Skills
+
+Custom prompt fragments can also be placed directly in `data/skills/` as plain Markdown files without frontmatter. Hiro injects these into every system prompt. Treat that directory as trusted local operator input, not as a public extension surface.
+
+## Structured Context Compression
+
+Hiro automatically compresses long conversations to preserve context window space. When a session accumulates more than 30 uncompacted messages, the oldest batch is summarized using a structured format:
+
+- **Goal** — the primary objective of the conversation segment
+- **Progress** — what was accomplished and current status
+- **Decisions** — important choices or approaches taken
+- **Files** — files created, modified, or referenced with paths
+- **Next Steps** — what work remains
+
+The compression also captures tool interactions from the message batch. Summaries are stored in SQLite and, if Pinecone is configured, also pushed to semantic memory for later retrieval.
+
+Use `/compact` to trigger compression manually.
