@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { join, basename, dirname } from "path";
 import { getAppContext } from "../core/appContext";
 import { generateText } from "ai";
 
@@ -58,6 +58,55 @@ export class SkillManager {
     }
   }
 
+  private parseHermesFrontmatter(frontmatter: string, inferredCategory: string): Partial<Skill> {
+    const lines = frontmatter.split("\n");
+    const meta: Record<string, string> = {};
+    let inMetadataHermes = false;
+
+    for (const line of lines) {
+      if (/^\s+hermes:/.test(line)) {
+        inMetadataHermes = true;
+        continue;
+      }
+      if (inMetadataHermes && /^\s+tags:/.test(line)) {
+        const tagMatch = line.match(/tags:\s*\[([^\]]+)\]/);
+        if (tagMatch) meta["hermes_tags"] = tagMatch[1];
+        continue;
+      }
+      if (inMetadataHermes && !/^\s{4}/.test(line)) {
+        inMetadataHermes = false;
+      }
+      if (!line.startsWith(" ") && !line.startsWith("\t")) {
+        const colonIdx = line.indexOf(":");
+        if (colonIdx > 0) {
+          const key = line.slice(0, colonIdx).trim();
+          const value = line.slice(colonIdx + 1).trim();
+          meta[key] = value;
+        }
+      }
+    }
+
+    const rawTags = meta["hermes_tags"] || meta["tags"] || "";
+    const tags = rawTags
+      ? rawTags.split(",").map(t => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
+      : [];
+
+    const versionRaw = meta["version"] || "1";
+    const versionInt = parseInt(versionRaw.split(".")[0], 10) || 1;
+
+    return {
+      name: (meta["name"] || "").replace(/^["']|["']$/g, ""),
+      description: (meta["description"] || "").replace(/^["']|["']$/g, ""),
+      category: inferredCategory,
+      tags,
+      version: versionInt,
+    };
+  }
+
+  private isHermesFrontmatter(frontmatter: string): boolean {
+    return /^metadata:/m.test(frontmatter) || /^version:\s*\d+\.\d+\.\d+/.test(frontmatter);
+  }
+
   private loadSkillFromFile(skillId: string): Skill | null {
     try {
       const filePath = join(SKILLS_DIR, `${skillId}.md`);
@@ -72,6 +121,23 @@ export class SkillManager {
 
       const frontmatter = frontmatterMatch[1];
       const skillContent = frontmatterMatch[2];
+
+      if (this.isHermesFrontmatter(frontmatter)) {
+        const parsed = this.parseHermesFrontmatter(frontmatter, "general");
+        return {
+          id: skillId,
+          name: parsed.name || skillId,
+          description: parsed.description || "",
+          category: parsed.category || "general",
+          tags: parsed.tags || [],
+          content: skillContent.trim(),
+          usage_count: 0,
+          last_used: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          version: parsed.version || 1,
+        };
+      }
       
       const metadata: any = {};
       frontmatter.split("\n").forEach(line => {
@@ -79,7 +145,10 @@ export class SkillManager {
         if (key && valueParts.length > 0) {
           const value = valueParts.join(":").trim();
           if (key === "tags") {
-            metadata[key] = value.split(",").map(t => t.trim());
+            const inlineArray = value.match(/^\[([^\]]*)\]$/);
+            metadata[key] = inlineArray
+              ? inlineArray[1].split(",").map(t => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
+              : value.split(",").map(t => t.trim());
           } else if (key === "usage_count" || key === "version") {
             metadata[key] = parseInt(value, 10);
           } else {
@@ -128,6 +197,86 @@ export class SkillManager {
     } catch (error) {
       console.error(`[Skills] Failed to save skill ${skill.id}:`, error);
     }
+  }
+
+  importHermesSkill(sourcePath: string, category: string): Skill | null {
+    try {
+      const content = readFileSync(sourcePath, "utf-8");
+      const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+      if (!frontmatterMatch) {
+        console.warn(`[Skills] No frontmatter found in ${sourcePath}`);
+        return null;
+      }
+
+      const frontmatter = frontmatterMatch[1];
+      const skillContent = frontmatterMatch[2].trim();
+      const parsed = this.parseHermesFrontmatter(frontmatter, category);
+
+      if (!parsed.name) {
+        console.warn(`[Skills] No name field in ${sourcePath}, skipping.`);
+        return null;
+      }
+
+      const skillId = `hermes-${parsed.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+      if (this.skillsCache.has(skillId)) {
+        return this.skillsCache.get(skillId)!;
+      }
+
+      const skill: Skill = {
+        id: skillId,
+        name: parsed.name,
+        description: parsed.description || "",
+        category: parsed.category || category,
+        tags: parsed.tags || [],
+        content: skillContent,
+        usage_count: 0,
+        last_used: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        version: parsed.version || 1,
+      };
+
+      this.skillsCache.set(skillId, skill);
+      this.saveSkillToFile(skill);
+      console.log(`[Skills] Imported Hermes skill: ${skillId} (${category})`);
+      return skill;
+    } catch (error) {
+      console.error(`[Skills] Failed to import Hermes skill from ${sourcePath}:`, error);
+      return null;
+    }
+  }
+
+  scanAndImportFromDirectory(rootDir: string): number {
+    if (!existsSync(rootDir)) {
+      console.warn(`[Skills] Source directory not found: ${rootDir}`);
+      return 0;
+    }
+
+    let imported = 0;
+
+    const walk = (dir: string) => {
+      try {
+        const entries = readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walk(fullPath);
+          } else if (entry.name === "SKILL.md") {
+            const relDir = dirname(fullPath).replace(rootDir, "").replace(/^[\/\\]/, "");
+            const category = relDir.split(/[\/\\]/)[0] || "general";
+            const result = this.importHermesSkill(fullPath, category);
+            if (result) imported++;
+          }
+        }
+      } catch (err) {
+        console.error(`[Skills] Error walking directory ${dir}:`, err);
+      }
+    };
+
+    walk(rootDir);
+    console.log(`[Skills] Scan complete: imported ${imported} Hermes skill(s) from ${rootDir}`);
+    return imported;
   }
 
   listSkills(category?: string): Skill[] {

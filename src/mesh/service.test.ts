@@ -334,3 +334,76 @@ test("canAutoRecoverRejectedStep stops after the first automatic retry", () => {
     false,
   );
 });
+
+test("normalizeMeshPlan preserves valid parallelWith sibling IDs", () => {
+  const plan = normalizeMeshPlan("dual research goal", {
+    steps: [
+      {
+        id: "research_a",
+        title: "Research topic A",
+        ownerRole: "researcher",
+        successCriteria: "Gather data on topic A",
+        expectedArtifact: "topic_a.md",
+        nextStepOnSuccess: "synthesize",
+        nextStepOnFailure: null,
+        parallelWith: ["research_b"],
+      },
+      {
+        id: "research_b",
+        title: "Research topic B",
+        ownerRole: "researcher",
+        successCriteria: "Gather data on topic B",
+        expectedArtifact: "topic_b.md",
+        nextStepOnSuccess: "synthesize",
+        nextStepOnFailure: null,
+        parallelWith: ["research_a"],
+      },
+      {
+        id: "synthesize",
+        title: "Synthesize findings",
+        ownerRole: "writer",
+        successCriteria: "Combined report",
+        expectedArtifact: "report.md",
+        nextStepOnSuccess: null,
+        nextStepOnFailure: null,
+      },
+    ],
+  });
+
+  assert.deepEqual(plan.steps[0].parallelWith, ["research_b"]);
+  assert.deepEqual(plan.steps[1].parallelWith, ["research_a"]);
+  assert.equal(plan.steps[2].parallelWith, undefined);
+});
+
+test("normalizeMeshPlan strips parallelWith entries that reference unknown or self IDs", () => {
+  const plan = normalizeMeshPlan("goal", {
+    steps: [
+      {
+        id: "step_one",
+        title: "Step one",
+        ownerRole: "worker",
+        successCriteria: "Done",
+        expectedArtifact: null,
+        nextStepOnSuccess: null,
+        nextStepOnFailure: null,
+        parallelWith: ["step_one", "nonexistent_step", "step_two"],
+      },
+      {
+        id: "step_two",
+        title: "Step two",
+        ownerRole: "worker",
+        successCriteria: "Done",
+        expectedArtifact: null,
+        nextStepOnSuccess: null,
+        nextStepOnFailure: null,
+      },
+    ],
+  });
+
+  assert.deepEqual(plan.steps[0].parallelWith, ["step_two"]);
+});
+
+test("buildMeshPlannerInstructions mentions parallelWith for independent steps", () => {
+  const instructions = buildMeshPlannerInstructions("dual research task", 6);
+  assert.match(instructions.prompt, /parallelWith/);
+});

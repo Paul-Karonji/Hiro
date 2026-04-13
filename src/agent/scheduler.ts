@@ -4,6 +4,28 @@ import { getAppContext } from "../core/appContext";
 
 const activeJobs = new Map<number, any>();
 
+async function routeDelivery(text: string, deliverTo: string = "auto"): Promise<void> {
+  const ctx = getAppContext();
+  const target = deliverTo.trim().toLowerCase();
+
+  if (target === "auto" || target === "") {
+    if (ctx.channel) {
+      await ctx.channel.sendText(text);
+    }
+    return;
+  }
+
+  const namedChannel = ctx.channels[target];
+  if (namedChannel) {
+    await namedChannel.sendText(text);
+  } else {
+    console.warn(`[Scheduler] Delivery target "${deliverTo}" not found in channels registry. Falling back to default channel.`);
+    if (ctx.channel) {
+      await ctx.channel.sendText(text);
+    }
+  }
+}
+
 function ensureSchedulerSession(taskId: number, prompt: string) {
   return getAppContext().sessions.ensureSystemSession(
     `system:scheduler:${taskId}`,
@@ -12,7 +34,7 @@ function ensureSchedulerSession(taskId: number, prompt: string) {
   );
 }
 
-function scheduleAction(id: number, cronExpr: string, prompt: string) {
+function scheduleAction(id: number, cronExpr: string, prompt: string, deliverTo: string = "auto") {
   if (!cron.validate(cronExpr)) {
     console.error(`[Scheduler] Invalid cron expression for task ${id}: ${cronExpr}`);
     return;
@@ -21,7 +43,7 @@ function scheduleAction(id: number, cronExpr: string, prompt: string) {
   ensureSchedulerSession(id, prompt);
 
   const job = cron.schedule(cronExpr, async () => {
-    console.log(`[Scheduler] TRIGGERED Task ${id}: ${prompt}`);
+    console.log(`[Scheduler] TRIGGERED Task ${id} (→${deliverTo}): ${prompt}`);
 
     try {
       const { text } = await processMessageWithEngine(
@@ -35,16 +57,15 @@ function scheduleAction(id: number, cronExpr: string, prompt: string) {
         },
       );
 
-      if (getAppContext().channel && text.trim().length > 0) {
-        await getAppContext().channel!.sendText(text);
+      if (text.trim().length > 0) {
+        await routeDelivery(text, deliverTo);
       }
     } catch (error: any) {
       console.error(`[Scheduler] Failed to execute task ${id}:`, error);
-      if (getAppContext().channel) {
-        await getAppContext().channel!.sendText(
-          `⚠️ Scheduled task failed: ${prompt}\nError: ${error?.message || String(error)}`,
-        );
-      }
+      await routeDelivery(
+        `⚠️ Scheduled task failed: ${prompt}\nError: ${error?.message || String(error)}`,
+        deliverTo,
+      ).catch(() => {});
     }
   });
 
@@ -55,14 +76,14 @@ export function initializeScheduler() {
   console.log("[Scheduler] Booting up and restoring tasks from database...");
   const tasks = getAppContext().memory.getScheduledTasks();
   for (const task of tasks) {
-    scheduleAction(task.id, task.cron_expression, task.prompt);
+    scheduleAction(task.id, task.cron_expression, task.prompt, task.deliver_to ?? "auto");
   }
   console.log(`[Scheduler] Restored ${tasks.length} proactive task(s).`);
 }
 
-export function addNewScheduledTask(cronExpr: string, prompt: string): number {
-  const id = getAppContext().memory.addScheduledTask(cronExpr, prompt);
-  scheduleAction(Number(id), cronExpr, prompt);
+export function addNewScheduledTask(cronExpr: string, prompt: string, deliverTo: string = "auto"): number {
+  const id = getAppContext().memory.addScheduledTask(cronExpr, prompt, deliverTo);
+  scheduleAction(Number(id), cronExpr, prompt, deliverTo);
   return Number(id);
 }
 

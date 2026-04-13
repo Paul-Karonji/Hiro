@@ -2,14 +2,21 @@ import { createTelegramChannelService } from "../bot/telegram";
 import { createWhatsAppChannelService } from "../bot/whatsapp";
 import type { ChannelPlugin, ChannelService } from "./types";
 
+export interface DualChannelService extends ChannelService {
+  telegram: ChannelService;
+  whatsapp: ChannelService;
+}
+
 export const dualChannelPlugin: ChannelPlugin = {
   id: "dual",
-  createService(): ChannelService {
+  createService(): DualChannelService {
     const telegram = createTelegramChannelService();
     const whatsapp = createWhatsAppChannelService();
 
     return {
       id: "dual",
+      telegram,
+      whatsapp,
       async start() {
         console.log("[Dual Channel] Starting Telegram and WhatsApp simultaneously...");
         // Start both without blocking each other

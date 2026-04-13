@@ -67,6 +67,13 @@ export function initializeWebServer() {
   });
 
   /**
+   * GET /health — used by Fly.io health checks
+   */
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
+  /**
    * GET /qr — serves the WhatsApp QR code as a scannable page
    */
   app.get("/qr", requireOperatorAccess, async (_req, res) => {

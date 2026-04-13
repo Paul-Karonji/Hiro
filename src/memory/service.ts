@@ -145,8 +145,8 @@ export class DefaultMemoryService {
     return queryPostgresAnalytics(sql);
   }
 
-  addScheduledTask(cronExpression: string, prompt: string) {
-    return dbQueries.addScheduledTask(cronExpression, prompt);
+  addScheduledTask(cronExpression: string, prompt: string, deliverTo: string = "auto") {
+    return dbQueries.addScheduledTask(cronExpression, prompt, deliverTo);
   }
 
   getScheduledTasks() {

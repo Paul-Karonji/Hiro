@@ -24,6 +24,7 @@ export interface AppContext {
   mesh: MeshWorkflowService;
   usageTracker: UsageTracker;
   channel?: ChannelService;
+  channels: Record<string, ChannelService>;
 }
 
 let appContext: AppContext | null = null;

@@ -12,7 +12,7 @@ import { MeshWorkflowService } from "./mesh/service";
 import { DefaultMemoryService } from "./memory/service";
 import { builtinChannelPlugin } from "./plugins/builtinChannel";
 import { whatsappChannelPlugin } from "./plugins/whatsappChannel";
-import { dualChannelPlugin } from "./plugins/dualChannel";
+import { dualChannelPlugin, type DualChannelService } from "./plugins/dualChannel";
 import { defaultMemoryPlugin } from "./plugins/builtinMemory";
 import { getBuiltinProviderPlugins } from "./plugins/builtinProviders";
 import { builtinToolsPlugin } from "./plugins/builtinTools";
@@ -89,6 +89,7 @@ async function main() {
     swarm,
     mesh,
     usageTracker,
+    channels: {},
   });
 
   for (const toolPluginId of runtimeConfig.toolPlugins) {
@@ -113,7 +114,15 @@ async function main() {
   }
 
   const channel = channelPlugin.createService(getAppContext());
-  updateAppContext({ channel });
+  const namedChannels: Record<string, import("./plugins/types").ChannelService> = {};
+  if (channel.id === "dual") {
+    const dual = channel as DualChannelService;
+    namedChannels["telegram"] = dual.telegram;
+    namedChannels["whatsapp"] = dual.whatsapp;
+  } else {
+    namedChannels[channel.id] = channel;
+  }
+  updateAppContext({ channel, channels: namedChannels });
 
   initializeScheduler();
   initializeProactiveSystem();

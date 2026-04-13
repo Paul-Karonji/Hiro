@@ -363,6 +363,7 @@ export function initSQLite() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       cron_expression TEXT NOT NULL,
       prompt TEXT NOT NULL,
+      deliver_to TEXT NOT NULL DEFAULT 'auto',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -442,6 +443,7 @@ export function initSQLite() {
   ensureColumn("messages", "model_used", "TEXT");
   ensureColumn("messages", "metadata", "TEXT");
   ensureColumn("summaries", "session_id", `TEXT NOT NULL DEFAULT '${PRIMARY_SESSION_ID}'`);
+  ensureColumn("scheduled_tasks", "deliver_to", "TEXT NOT NULL DEFAULT 'auto'");
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id, id);
@@ -955,11 +957,11 @@ export const dbQueries = {
     }));
   },
 
-  addScheduledTask: (cron: string, prompt: string) => {
+  addScheduledTask: (cron: string, prompt: string, deliverTo: string = "auto") => {
     const info = db.prepare(`
-      INSERT INTO scheduled_tasks (cron_expression, prompt)
-      VALUES (?, ?)
-    `).run(cron, prompt);
+      INSERT INTO scheduled_tasks (cron_expression, prompt, deliver_to)
+      VALUES (?, ?, ?)
+    `).run(cron, prompt, deliverTo);
     return info.lastInsertRowid;
   },
 
@@ -968,6 +970,7 @@ export const dbQueries = {
       id: number;
       cron_expression: string;
       prompt: string;
+      deliver_to: string;
     }>;
   },
 

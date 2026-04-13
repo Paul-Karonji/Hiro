@@ -17,9 +17,9 @@ This repository is safe to publish only if you keep secrets out of git and keep 
 - Normal chat file generation with attachment delivery back to Telegram or WhatsApp
 - Markdown, text, HTML, JSON, CSV, and Word-compatible `.doc` export
 - Live browser canvas for rich visual output
-- Scheduled and proactive tasks
-- Multi-model mesh workflows with visible progress, failover, and final-only output
-- Dynamic skills system with self-improvement and automatic skill generation from successful workflows
+- Scheduled and proactive tasks with per-platform delivery targeting (`auto`, `telegram`, `whatsapp`)
+- Multi-model mesh workflows with visible progress, failover, parallel step execution, and final-only output
+- Dynamic skills system with self-improvement, automatic skill generation, and Hermes/agentskills.io import
 - Structured context compression that preserves goal, progress, decisions, files, and next steps across long conversations
 
 ## Mesh Workflow
@@ -34,6 +34,7 @@ Current mesh behavior:
 - Mesh rotates worker steps across a collaboration pool of models
 - Mesh can fail over to the next model on retryable provider errors such as rate limits, token-budget failures, and upstream provider errors
 - Mesh planner and step routing are hardened against malformed structured output, missing markers, and self-looping rejection routes
+- Independent steps can run in parallel when the planner sets `parallelWith` — concurrent siblings execute simultaneously up to `swarm.maxParallel` and merge before the next sequential step
 
 Default mesh collaboration pool comes from [src/core/runtimeConfig.ts](./src/core/runtimeConfig.ts) and currently includes:
 
@@ -255,6 +256,16 @@ Do not run multiple Telegram polling processes against the same bot token.
 - Do not destroy the volume, wipe `/app/data`, or recreate the app unless you intend to re-link WhatsApp
 - If you deploy on Fly for a new environment, customize [fly.toml](./fly.toml) with your own app name before deploying
 
+### WhatsApp Auth and Safe Deploys
+
+The `fly.toml` uses `strategy = "immediate"`. This stops the running machine **before** starting the new one, so only one instance ever holds the WhatsApp session at a time. The auth state in `/app/data/whatsapp_auth` is on the persistent volume and survives the deploy — no QR re-scan needed.
+
+Do not change the deploy strategy to `rolling` or `bluegreen` for this app. Those strategies start a new machine before stopping the old one, which causes the WhatsApp session on the old machine to be evicted.
+
+### Health Check
+
+The app exposes `GET /health` (no auth required). Fly polls this every 15 seconds after a 30-second startup grace period. A failed health check during a deploy will abort the release before the old machine is replaced.
+
 Example deploy flow:
 
 ```bash
@@ -329,10 +340,55 @@ Use the `manage_skills` tool directly in conversation:
 | `execute` | Apply a skill pattern to a given context |
 | `create` | Create a new skill from a goal, execution trace, and result |
 | `improve` | Improve an existing skill with feedback |
+| `import` | Import skills from a Hermes/agentskills.io `SKILL.md` file or directory tree |
+
+### Importing Hermes Skills
+
+Hiro can import skills from [Hermes Agent](https://github.com/paulkaronji/hermes-agent) or any agentskills.io-compatible repository. Skills use the standard `SKILL.md` format with YAML frontmatter.
+
+To import all skills from the bundled Hermes clone:
+
+```
+manage_skills action=import
+```
+
+To import from a specific path or single file:
+
+```
+manage_skills action=import source_path=artifacts/hermes-agent/skills/software-development/systematic-debugging/SKILL.md
+```
+
+Imported skills are prefixed `hermes-` and saved into `data/skills/`. Duplicate imports are skipped.
 
 ### Manual Skills
 
 Custom prompt fragments can also be placed directly in `data/skills/` as plain Markdown files without frontmatter. Hiro injects these into every system prompt. Treat that directory as trusted local operator input, not as a public extension surface.
+
+## Scheduled Tasks
+
+Hiro can schedule recurring tasks using standard cron syntax via the `schedule_task` tool.
+
+```
+schedule_task cronExpr="0 8 * * *" prompt="Send a morning briefing"
+schedule_task cronExpr="0 8 * * *" prompt="Send weather report to Telegram only" deliverTo="telegram"
+```
+
+### Delivery Targeting
+
+The optional `deliverTo` parameter controls where the scheduled output goes when running in dual-channel mode:
+
+| Value | Behavior |
+|-------|----------|
+| `auto` | Sends to the active channel (default). In `dual` mode this broadcasts to both Telegram and WhatsApp. |
+| `telegram` | Sends only to Telegram. |
+| `whatsapp` | Sends only to WhatsApp. |
+
+Managing tasks:
+
+- `list_scheduled_tasks` — show all active tasks including their delivery target
+- `delete_scheduled_task id=<n>` — cancel and remove a task
+
+Scheduled tasks survive restarts because they are persisted in SQLite and restored by the scheduler on boot.
 
 ## Structured Context Compression
 

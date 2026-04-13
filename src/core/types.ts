@@ -164,6 +164,7 @@ export interface MeshPlanStep {
   expectedArtifact: string | null;
   nextStepOnSuccess: string | null;
   nextStepOnFailure: string | null;
+  parallelWith?: string[];
 }
 
 export interface MeshPlan {

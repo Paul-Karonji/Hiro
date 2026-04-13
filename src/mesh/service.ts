@@ -18,6 +18,7 @@ const rawMeshStepSchema = z.object({
   expectedArtifact: z.string().trim().min(1).nullable().optional(),
   nextStepOnSuccess: z.string().trim().min(1).nullable().optional(),
   nextStepOnFailure: z.string().trim().min(1).nullable().optional(),
+  parallelWith: z.array(z.string()).optional(),
 });
 
 const rawMeshStepArraySchema = z.array(rawMeshStepSchema).min(1);
@@ -225,6 +226,11 @@ export function normalizeMeshPlan(goal: string, rawPlan: RawMeshPlan): MeshPlan 
       const id = duplicateCount === 0 ? baseId : `${baseId}_${duplicateCount + 1}`;
       const title = normalizePlannerStepTitle(stepRecord.title, index);
 
+      const rawParallelWith = Array.isArray(stepRecord.parallelWith) ? stepRecord.parallelWith : [];
+      const parallelWith = rawParallelWith
+        .map((s: unknown) => coerceTrimmedString(s))
+        .filter((s): s is string => s !== null);
+
       return {
         id,
         title,
@@ -233,6 +239,7 @@ export function normalizeMeshPlan(goal: string, rawPlan: RawMeshPlan): MeshPlan 
         expectedArtifact,
         nextStepOnSuccess: normalizePlannerOptionalString(stepRecord.nextStepOnSuccess),
         nextStepOnFailure: normalizePlannerOptionalString(stepRecord.nextStepOnFailure),
+        parallelWith: parallelWith.length > 0 ? parallelWith : undefined,
       };
     })
     .filter((step) => step.id && step.title && step.ownerRole && step.successCriteria);
@@ -247,6 +254,9 @@ export function normalizeMeshPlan(goal: string, rawPlan: RawMeshPlan): MeshPlan 
     ...step,
     nextStepOnSuccess: normalizeRouteTarget(step.nextStepOnSuccess, stepIds),
     nextStepOnFailure: normalizeRouteTarget(step.nextStepOnFailure, stepIds),
+    parallelWith: step.parallelWith
+      ? step.parallelWith.filter((id) => stepIds.has(id) && id !== step.id)
+      : undefined,
   }));
 
   const requestedInitialStepId = coerceTrimmedString(rawPlan.initialStepId) || null;
@@ -279,6 +289,7 @@ Create an FSM execution plan for the following goal.
 - If creating a review loop, point the reviewer's nextStepOnFailure back to the creator's step ID.
 - Do NOT route nextStepOnFailure back to the same step unless the step has a clearly different retry strategy. Prefer routing to an earlier corrective step or to null when repeated failure should stop the workflow.
 - For research, discovery, or investigation goals, start with a scope/query-strategy step before raw data collection, and ensure collection failures route to query expansion, source discovery, or another corrective step.
+- If two or more steps are fully independent of each other (no output from one is required by the other), you MAY set "parallelWith" on each such step to an array of the IDs of its concurrent siblings. Steps with parallelWith will run at the same time. Do not use parallelWith when steps depend on each other's output.
 - Keep the plan implementation-oriented.
 - Output JSON only.
 
@@ -684,6 +695,8 @@ export class MeshWorkflowService {
     let finalStatus: "completed" | "failed" | "partial" = "completed";
     let terminalMessage: string | null = null;
 
+    const maxParallel = this.runtimeConfig.swarm.maxParallel;
+
     while (currentStepId && loopCount < MAX_LOOPS) {
       loopCount++;
       const step = stepMap.get(currentStepId);
@@ -694,6 +707,79 @@ export class MeshWorkflowService {
          break;
       }
 
+      // --- Parallel execution branch ---
+      const parallelSiblingIds = (step.parallelWith ?? []).filter((id) => stepMap.has(id) && id !== step.id);
+      if (parallelSiblingIds.length > 0) {
+        const batchSteps = [step, ...parallelSiblingIds.map((id) => stepMap.get(id)!)].slice(0, maxParallel);
+        await reportProgress(`Running ${batchSteps.length} steps in parallel: ${batchSteps.map((s) => s.title).join(", ")}`);
+
+        const batchResults = await Promise.allSettled(
+          batchSteps.map((parallelStep) => {
+            const stepRecordId = `${workflowId}:${parallelStep.id}:${loopCount}`;
+            this.memory.createWorkflowStep({
+              id: stepRecordId,
+              workflowId,
+              stepOrder: loopCount,
+              title: `[Loop ${loopCount}] ${parallelStep.title}`,
+              ownerRole: parallelStep.ownerRole,
+              dependsOn: [],
+              successCriteria: parallelStep.successCriteria,
+              expectedArtifact: parallelStep.expectedArtifact ?? null,
+              status: "in_progress",
+            });
+            return this.runStepWithModelFailover({
+              workflowId,
+              goal,
+              workflowSessionId: workflowSession.id,
+              step: parallelStep,
+              loopCount,
+              artifacts,
+              collaborationModels,
+              reportProgress,
+            }).then((r) => ({ parallelStep, stepRecordId, ...r }));
+          }),
+        );
+
+        let firstRejectedStep: MeshPlanStep | null = null;
+
+        for (const settled of batchResults) {
+          if (settled.status === "rejected") {
+            firstRejectedStep = firstRejectedStep ?? step;
+            await reportProgress(`Parallel step encountered an execution error.`);
+            continue;
+          }
+          const { parallelStep, stepRecordId, session, result } = settled.value;
+          const routingDecision = getMeshRoutingDecision(result.text);
+          const cleanedText = stripMeshRoutingMarkers(result.text) || result.text;
+
+          artifacts.push({ id: parallelStep.id, title: parallelStep.title, role: parallelStep.ownerRole, summary: cleanedText });
+          this.memory.updateWorkflowStep(stepRecordId, {
+            status: routingDecision === "rejected" ? "failed" : "completed",
+            outputSessionId: session.id,
+            resultSummary: cleanedText,
+          });
+
+          if (routingDecision === "rejected") {
+            firstRejectedStep = firstRejectedStep ?? parallelStep;
+          }
+        }
+
+        if (firstRejectedStep) {
+          await reportProgress(`Parallel batch: step "${firstRejectedStep.title}" was rejected. Routing to failure path.`);
+          if (!firstRejectedStep.nextStepOnFailure) {
+            terminalMessage = `Mesh failed: parallel batch had a rejected step ("${firstRejectedStep.title}") with no recovery route.`;
+            finalStatus = "failed";
+            break;
+          }
+          currentStepId = firstRejectedStep.nextStepOnFailure;
+        } else {
+          await reportProgress(`Parallel batch APPROVED: ${batchSteps.map((s) => s.title).join(", ")}`);
+          currentStepId = step.nextStepOnSuccess;
+        }
+        continue;
+      }
+
+      // --- Sequential execution path (original logic) ---
       const stepRecordId = `${workflowId}:${step.id}:${loopCount}`;
       
       // We save iterations as distinct workflow steps to track loop counts in history

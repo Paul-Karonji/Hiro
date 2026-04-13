@@ -6,3 +6,8 @@ dist
 .gitignore
 artifacts
 data
+*.db
+*.db-shm
+*.db-wal
+test-*.ts
+.vscode

@@ -8,6 +8,13 @@ primary_region = 'jnb'
 
 [build]
 
+# Stops the old machine BEFORE starting the new one.
+# This is critical for WhatsApp: prevents two machines from simultaneously
+# holding the same WhatsApp session, which would kick one connection.
+[deploy]
+  strategy = "immediate"
+  wait_timeout = "5m"
+
 [mounts]
   source = "hiro_data"
   destination = "/app/data"
@@ -25,3 +32,10 @@ primary_region = 'jnb'
   auto_start_machines = true
   min_machines_running = 1
   processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"

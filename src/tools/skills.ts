@@ -49,7 +49,7 @@ export const skillsTool: ToolDefinition = {
     properties: {
       action: {
         type: "string",
-        enum: ["list", "search", "get", "execute", "create", "improve"],
+        enum: ["list", "search", "get", "execute", "create", "improve", "import"],
         description: "The action to perform on skills"
       },
       skill_id: {
@@ -83,6 +83,10 @@ export const skillsTool: ToolDefinition = {
       feedback: {
         type: "string",
         description: "Feedback for skill improvement (for improve action)"
+      },
+      source_path: {
+        type: "string",
+        description: "Path to a SKILL.md file or directory tree to import from (for import action). Defaults to artifacts/hermes-agent/skills/ when omitted."
       }
     },
     required: ["action"]
@@ -128,6 +132,9 @@ export async function handleManageSkills(
         return "Error: skill_id and feedback parameters are required for improve action";
       }
       return improveSkill(args.skill_id, args.feedback);
+
+    case "import":
+      return importSkillsFromHermes(args.source_path);
     
     default:
       return `Error: Unknown action '${action}'`;
@@ -268,6 +275,31 @@ async function improveSkill(skillId: string, feedback: string): Promise<string> 
     "",
     "The skill has been updated with the feedback."
   ].join("\n");
+}
+
+function importSkillsFromHermes(sourcePath?: string): string {
+  const defaultPath = path.resolve(process.cwd(), "artifacts", "hermes-agent", "skills");
+  const resolvedPath = sourcePath ? path.resolve(process.cwd(), sourcePath) : defaultPath;
+
+  if (!fs.existsSync(resolvedPath)) {
+    return `Error: Path not found: ${resolvedPath}`;
+  }
+
+  const stat = fs.statSync(resolvedPath);
+  if (stat.isFile()) {
+    const category = path.basename(path.dirname(resolvedPath));
+    const skill = skillManager.importHermesSkill(resolvedPath, category);
+    if (!skill) {
+      return `Failed to import skill from ${resolvedPath}. Check that the file has valid YAML frontmatter.`;
+    }
+    return `Imported skill '${skill.name}' (ID: ${skill.id}) in category '${skill.category}'.`;
+  }
+
+  const count = skillManager.scanAndImportFromDirectory(resolvedPath);
+  if (count === 0) {
+    return `No SKILL.md files found in ${resolvedPath}. The directory may already be up to date or contains no importable skills.`;
+  }
+  return `Successfully imported ${count} skill${count === 1 ? "" : "s"} from ${resolvedPath}. Use 'list' to see all available skills.`;
 }
 
 // Auto-skill creation hook for complex tasks
