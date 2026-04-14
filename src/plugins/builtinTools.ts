@@ -39,7 +39,10 @@ export const builtinToolsPlugin: ToolPlugin = {
           return "Error: No fact provided.";
         }
 
-        getAppContext().memory.addCoreFact(fact);
+        const app = getAppContext();
+        app.memory.addCoreFact(fact);
+        // Mirror to Pinecone so search_memory can also surface it
+        app.memory.storeSemanticMemory(`fact-${Date.now()}`, fact).catch(() => {});
         return `Successfully memorized fact: ${fact}`;
       }),
       runtimeTool(searchHistoryDeclaration, async (args) => {
@@ -65,18 +68,30 @@ export const builtinToolsPlugin: ToolPlugin = {
         }
 
         const app = getAppContext();
-        const results = await app.memory.searchSemanticMemory(query, 3);
-        const session = app.memory.getSession(context.sessionId);
+        const [semanticResults, session] = await Promise.all([
+          app.memory.searchSemanticMemory(query, 5),
+          Promise.resolve(app.memory.getSession(context.sessionId)),
+        ]);
         const imageMemories = findRelevantImageMemories(session?.metadata, query)
           .map((memory) => memory.summary);
 
-        if (results.length === 0 && imageMemories.length === 0) {
+        // Also surface SQLite core facts that fuzzy-match the query terms
+        const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 3);
+        const coreFacts = app.memory.getCoreFacts()
+          .filter(f => queryTerms.some(term => f.fact.toLowerCase().includes(term)))
+          .map(f => f.fact)
+          .slice(0, 5);
+
+        if (semanticResults.length === 0 && imageMemories.length === 0 && coreFacts.length === 0) {
           return "Search completed. No relevant historical memories were found for that query.";
         }
 
         const sections: string[] = [];
-        if (results.length > 0) {
-          sections.push(`HISTORICAL MEMORIES FOUND:\n${results.map((result, index) => `${index + 1}. ${result}`).join("\n\n")}`);
+        if (semanticResults.length > 0) {
+          sections.push(`HISTORICAL MEMORIES FOUND:\n${semanticResults.map((result, index) => `${index + 1}. ${result}`).join("\n\n")}`);
+        }
+        if (coreFacts.length > 0) {
+          sections.push(`REMEMBERED FACTS (matching query):\n${coreFacts.map((f, i) => `${i + 1}. ${f}`).join("\n")}`);
         }
         if (imageMemories.length > 0) {
           sections.push(`RECENT IMAGE MEMORIES:\n${imageMemories.map((result, index) => `${index + 1}. ${result}`).join("\n\n")}`);

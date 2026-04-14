@@ -561,7 +561,7 @@ CORE RULES:
     const coreFacts = this.deps.memory.getCoreFacts();
     if (coreFacts.length > 0) {
       systemInstruction += "\nCORE FACTS ABOUT USER (Most relevant):\n";
-      coreFacts.slice(0, 15).forEach((factObj) => {
+      coreFacts.slice(0, 25).forEach((factObj) => {
         systemInstruction += `- ${factObj.fact}\n`;
       });
       systemInstruction += "\n";
