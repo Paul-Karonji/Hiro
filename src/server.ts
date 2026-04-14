@@ -6,9 +6,10 @@ import QRCode from "qrcode";
 import { processMessageWithEngine } from "./agent/engine";
 import { config } from "./config";
 import { getAppContext } from "./core/appContext";
-import { initializeCanvasServer } from "./canvas/server";
+import { broadcastChatReply, getLastWidgetTimestamp, initializeCanvasServer } from "./canvas/server";
 import { getLatestQR } from "./bot/whatsappQR";
 import { requireOperatorAccess, requireWebhookAccess } from "./serverAuth";
+import { PRIMARY_SESSION_ID } from "./memory/sqlite";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,6 +99,40 @@ export function initializeWebServer() {
       </body></html>`);
     } catch (e: any) {
       res.status(500).send("Failed to generate QR: " + e.message);
+    }
+  });
+
+  /**
+   * POST /canvas/send — send a message to Hiro directly from the Live Canvas
+   * Response is delivered back over WebSocket as a chat_reply payload.
+   */
+  app.post("/canvas/send", requireOperatorAccess, async (req, res) => {
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    if (!message) {
+      res.status(400).json({ error: "message is required" });
+      return;
+    }
+
+    res.status(202).json({ status: "queued" });
+
+    try {
+      const preTurnTimestamp = getLastWidgetTimestamp();
+      const { text } = await processMessageWithEngine(message, false, {
+        sessionId: PRIMARY_SESSION_ID,
+        allowBackgroundTasks: false,
+        enableSpeech: false,
+        metadata: { source: "canvas_command" },
+      });
+
+      const canvasWasRendered = getLastWidgetTimestamp() !== preTurnTimestamp;
+      const replyText = text?.trim() || "";
+      if (replyText && !canvasWasRendered) {
+        broadcastChatReply(replyText);
+      } else if (replyText) {
+        broadcastChatReply(replyText);
+      }
+    } catch (error: any) {
+      broadcastChatReply(`Error: ${error?.message || String(error)}`);
     }
   });
 
