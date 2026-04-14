@@ -428,6 +428,10 @@ const RETRYABLE_MESH_MODEL_ERROR_PATTERNS = [
   /\b503\b/i,
   /bad gateway/i,
   /failed after \d+ attempts/i,
+  /openai_error/i,
+  /provider error/i,
+  /internal server error/i,
+  /\b500\b/i,
   /invalid character.*looking for beginning/i,
   /invalid json response/i,
   /unexpected token.*json/i,
@@ -459,12 +463,20 @@ export function isRetryableMeshModelError(error: unknown) {
     return true;
   }
 
+  // Treat any error whose name is a known provider error type as retryable
+  const errorName = (error as any)?.name;
+  if (typeof errorName === "string" && /openai_error|api_error|provider_error|APICallError/i.test(errorName)) {
+    return true;
+  }
+
   const haystack = [
     (error as any)?.name,
     (error as any)?.message,
     (error as any)?.cause?.message,
-    (error as any)?.responseBody,
+    (error as any)?.cause?.error?.message,
+    (error as any)?.cause?.value?.message,
     (error as any)?.cause?.value?.error?.message,
+    (error as any)?.responseBody,
     (error as any)?.text,
   ]
     .filter(Boolean)
