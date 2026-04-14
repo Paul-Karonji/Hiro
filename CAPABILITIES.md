@@ -471,15 +471,7 @@ Single-owner design — Hiro is built for one operator. All chat surfaces enforc
 
 ---
 
-## 22. Deployment
 
-Hiro is deployed on [Fly.io](https://fly.io) at `https://hiro.fly.dev`.
-
-- Region: `jnb` (Johannesburg)
-- Persistent volume at `/app/data` — survives deploys
-- WhatsApp auth stored at `/app/data/whatsapp_auth` — survives deploys (no QR re-scan on deploy)
-- Deploy strategy: `immediate` — old machine stops before new one starts, preventing session conflicts
-- Health check: `GET /health` polled every 15s with 30s grace on startup
 
 **Deploy commands:**
 ```bash
