@@ -13,7 +13,7 @@ const DEFAULT_MESH_COLLABORATION_MODELS = [
   "google:gemini-2.5-flash",
   "groq:llama-3.3-70b-versatile",
   "mistral:mistral-large-latest",
-  "alibaba:qwen3.6-plus",
+  "alibaba:qwen-plus-latest",
   "openrouter:qwen/qwen3.6-plus:free",
 ];
 
