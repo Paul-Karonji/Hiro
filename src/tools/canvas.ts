@@ -53,10 +53,10 @@ export const renderCanvasTool: RuntimeTool = {
 
     if (mode === "append") {
       broadcastToCanvas({ type: "append", html, title });
-      return `Section "${title}" appended to the Live Canvas.`;
+      return `[Canvas] "${title}" appended. View at ${config.PUBLIC_BASE_URL}/canvas`;
     }
 
     broadcastToCanvas({ type: "widget", html, title });
-    return `Widget "${title}" pushed to the Live Canvas. Open ${config.PUBLIC_BASE_URL}/canvas to see it.`;
+    return `[Canvas] "${title}" is live. View at ${config.PUBLIC_BASE_URL}/canvas`;
   },
 };
