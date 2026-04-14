@@ -275,7 +275,7 @@ export class AgentRuntime {
       .filter(Boolean)
       .join("\n");
 
-    return /request rate increased too quickly|rate limit|too many requests|upstream error|requires more credits|insufficient credits|insufficient balance|upgrade to a paid account|quota exceeded|billing|max_tokens|maximum context length|context length|context window|token limit|requested up to \d+ tokens|can only afford \d+|temporarily unavailable|service unavailable|timed out|timeout|overloaded|connection reset|socket hang up|econnreset|network error|\b429\b|\b503\b|NoContentGeneratedError|model output must contain|output text or tool calls|invalid character.*looking for beginning|invalid json response|unexpected token.*json|json parse error/i
+    return /request rate increased too quickly|rate limit|too many requests|upstream error|requires more credits|insufficient credits|insufficient balance|upgrade to a paid account|quota exceeded|billing|max_tokens|maximum context length|context length|context window|token limit|requested up to \d+ tokens|can only afford \d+|temporarily unavailable|service unavailable|timed out|timeout|overloaded|connection reset|socket hang up|econnreset|network error|bad gateway|\b429\b|\b502\b|\b503\b|failed after \d+ attempts|NoContentGeneratedError|model output must contain|output text or tool calls|invalid character.*looking for beginning|invalid json response|unexpected token.*json|json parse error/i
       .test(haystack);
   }
 
