@@ -38,14 +38,22 @@ Current mesh behavior:
 
 Default mesh collaboration pool comes from [src/core/runtimeConfig.ts](./src/core/runtimeConfig.ts) and currently includes:
 
-- `alibaba:qwen3.6-plus`
-- `openrouter:qwen/qwen3.6-plus:free`
-- `google:gemini-2.5-flash`
-- `mistral:mistral-large-latest`
-- `groq:llama-3.3-70b-versatile`
+Resurge ($0/request, no quota):
+- `resurge:grok-4.1-fast`
+- `resurge:grok-4.1-expert`
 - `resurge:grok-4.1-thinking`
-- `alibaba:qwen3.5-plus`
-- `openrouter:qwen/qwen3.5-plus-02-15`
+- `resurge:moonshotai/kimi-k2-instruct-0905`
+- `resurge:grok-4`
+
+Alibaba (1M free tokens on International endpoint, open-source always free):
+- `alibaba:qwen3-max`
+- `alibaba:qwen-plus-latest`
+- `alibaba:qwq-plus`
+- `alibaba:qwen3-235b-a22b`
+
+Other free tiers:
+- `google:gemini-2.5-flash`
+- `openrouter:qwen/qwen3.6-plus:free`
 
 Mesh uses the active model as the starting planner/default driver context, but worker steps can be routed across the collaboration pool.
 

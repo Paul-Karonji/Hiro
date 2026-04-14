@@ -5,15 +5,20 @@ import type { RuntimeConfig } from "./types";
 
 const runtimeConfigPath = path.resolve(process.cwd(), "data/runtime_config.json");
 const DEFAULT_MESH_COLLABORATION_MODELS = [
+  // Resurge — $0/request, no quota
   "resurge:grok-4.1-fast",
-  "resurge:grok-4",
-  "resurge:moonshotai/kimi-k2-instruct-0905",
   "resurge:grok-4.1-expert",
   "resurge:grok-4.1-thinking",
-  "google:gemini-2.5-flash",
-  "groq:llama-3.3-70b-versatile",
-  "mistral:mistral-large-latest",
+  "resurge:moonshotai/kimi-k2-instruct-0905",
+  "resurge:grok-4",
+  // Alibaba — 1M free tokens (International endpoint), open-source always free
+  "alibaba:qwen3-max",
   "alibaba:qwen-plus-latest",
+  "alibaba:qwq-plus",
+  "alibaba:qwen3-235b-a22b",
+  // Google — free tier
+  "google:gemini-2.5-flash",
+  // OpenRouter free fallback
   "openrouter:qwen/qwen3.6-plus:free",
 ];
 
