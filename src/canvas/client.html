@@ -9,10 +9,10 @@
     :root{--bg:#08131d;--bg2:#0d1d28;--panel:rgba(8,21,31,.84);--panel2:rgba(11,24,34,.94);--line:rgba(154,181,204,.18);--line2:rgba(154,181,204,.28);--text:#edf3f9;--muted:#92a7bb;--muted2:#b6c7d8;--teal:#58c6b5;--teal2:#8fddd1;--gold:#d6ad75;--rose:#ee8d84;--ok:#7dd3b0;--warn:#f3be71;--shadow:0 24px 80px rgba(0,0,0,.42);--xl:28px;--lg:22px;--md:16px;--body:"IBM Plex Sans",system-ui,sans-serif;--display:"Manrope",system-ui,sans-serif;--mono:"IBM Plex Mono",monospace}
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{min-height:100%;background:radial-gradient(circle at top left,rgba(88,198,181,.14),transparent 32%),radial-gradient(circle at bottom right,rgba(214,173,117,.14),transparent 34%),linear-gradient(160deg,var(--bg) 0%,#0a1720 42%,var(--bg2) 100%);color:var(--text);font-family:var(--body)}
-    body{overflow:hidden}
+    body{overflow-x:hidden}
     button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer;background:none;border:0}
     .app{display:grid;grid-template-columns:minmax(290px,340px) minmax(0,1fr);min-height:100vh;gap:24px;padding:24px}
-    .rail,.main{display:flex;flex-direction:column;gap:18px;min-width:0}.main{overflow:hidden}
+    .rail,.main{display:flex;flex-direction:column;gap:18px;min-width:0}.main{overflow:visible}
     .card,.panel,.frame,.deck-card{border:1px solid var(--line);background:var(--panel);border-radius:var(--xl);box-shadow:var(--shadow);backdrop-filter:blur(18px)}
     .card,.panel,.deck-card{padding:22px 20px}
     .brand{display:flex;align-items:center;gap:16px}.mark{width:52px;height:52px;border-radius:18px;background:radial-gradient(circle at 28% 24%,rgba(255,255,255,.42),transparent 28%),linear-gradient(145deg,rgba(88,198,181,.98),rgba(26,70,79,.96) 70%,rgba(9,26,36,.98));position:relative;overflow:hidden;box-shadow:0 20px 50px rgba(88,198,181,.2)}.mark:after{content:"";position:absolute;inset:12px;border-radius:12px;border:1px solid rgba(255,255,255,.18)}.brand h1{font-family:var(--display);font-size:1.25rem;font-weight:800;letter-spacing:-.04em}.brand p{margin-top:4px;color:var(--muted);font-size:.92rem;line-height:1.5}
@@ -28,8 +28,8 @@
     .history-row{display:flex;justify-content:space-between;gap:12px;margin-top:8px}.history-empty{padding:18px 14px;border-radius:var(--md);border:1px dashed var(--line);color:var(--muted);line-height:1.6;font-size:.9rem}
     .head,.stage-head{display:flex;align-items:center;justify-content:space-between;gap:18px}.title h2,.stage-copy h3,.widget-title,.placeholder-main h3,.widget-body h1,.widget-body h2,.widget-body h3,.widget-body h4,.deck-card h4{font-family:var(--display);letter-spacing:-.04em;color:var(--text)}.title h2{font-size:clamp(1.7rem,2.5vw,2.5rem);line-height:.98;font-weight:800}.stage-copy h3{font-size:1.28rem;line-height:1.05;font-weight:800}.title p,.stage-copy p,.deck-meta,.footnote{margin-top:8px;color:var(--muted);line-height:1.62;max-width:62ch;font-size:.94rem}
     .pills,.actions{display:flex;flex-wrap:wrap;gap:10px}.pill,.action{display:inline-flex;align-items:center;gap:10px;border-radius:999px;border:1px solid var(--line);padding:11px 14px;background:rgba(255,255,255,.03)}.pill{color:var(--muted2)}.action strong,.prompt strong{font-size:.83rem;font-weight:700}.action span,.prompt span{color:var(--muted);font-size:.8rem}
-    .frame{padding:0;overflow:hidden;min-height:0;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015)),var(--panel2)}.shellbar{margin:18px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:18px}.widget-title{margin-top:8px;font-size:1.1rem;font-weight:800}.widget-count{display:grid;gap:4px;justify-items:end;text-align:right}.scroll{position:relative;min-height:0;flex:1 1 auto;overflow:auto;padding:0 18px 18px}
-    .widget-body{min-height:calc(100vh - 360px);border-radius:var(--lg);border:1px solid var(--line);background:radial-gradient(circle at top right,rgba(88,198,181,.05),transparent 28%),linear-gradient(180deg,rgba(6,16,24,.96),rgba(9,18,27,.94));padding:28px;position:relative;z-index:1}
+    .frame{padding:0;overflow:hidden;min-height:55vh;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015)),var(--panel2)}.shellbar{margin:14px 14px 0;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}.shellbar-left{min-width:0;flex:1 1 auto}.shellbar-right{display:flex;align-items:center;gap:10px;flex-shrink:0}.widget-title{margin-top:5px;font-size:1rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.widget-count{display:grid;gap:3px;justify-items:end;text-align:right}.scroll{position:relative;overflow:auto;padding:14px 14px 0;flex:1 1 auto;min-height:0}.shell-btns{display:flex;gap:6px;flex-shrink:0}.shell-btn{padding:6px 11px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted2);font-size:.74rem;font-weight:700;font-family:var(--mono);letter-spacing:.04em;cursor:pointer;transition:.14s;white-space:nowrap}.shell-btn:hover{border-color:var(--line2);background:rgba(255,255,255,.08);color:var(--text)}
+    .widget-body{min-height:280px;border-radius:var(--lg);border:1px solid var(--line);background:radial-gradient(circle at top right,rgba(88,198,181,.05),transparent 28%),linear-gradient(180deg,rgba(6,16,24,.96),rgba(9,18,27,.94));padding:28px;position:relative;z-index:1}
     .placeholder{position:absolute;inset:0 18px 18px;border-radius:var(--lg);display:grid;z-index:2;padding:28px;transition:.18s}.placeholder.hidden{opacity:0;visibility:hidden}.hero{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(290px,.9fr);gap:18px;min-height:100%}.placeholder-main,.placeholder-side{padding:26px;backdrop-filter:blur(14px)}.placeholder-main{display:grid;align-content:space-between;gap:24px}.placeholder-side{display:grid;gap:18px}.placeholder-main h3{font-size:clamp(2rem,4vw,3.35rem);line-height:.94;font-weight:800;max-width:10ch}
     .prompts{grid-template-columns:repeat(2,minmax(0,1fr))}.prompt{padding:16px;text-align:left;display:grid;gap:6px}.ops{list-style:none;display:grid;gap:12px}.ops strong{display:block;font-size:.9rem;font-weight:700;color:var(--text)}
     .deck{grid-template-columns:repeat(3,minmax(0,1fr))}.deck-card{display:grid;gap:14px;align-content:start}.deck-list,.mini{list-style:none;display:grid;gap:10px}.deck-list li,.mini li{color:var(--muted2);line-height:1.55;font-size:.9rem}
@@ -52,8 +52,8 @@
     .chat-reply-kicker.visible{display:block}
     .frame.fullscreen{position:fixed!important;inset:0!important;z-index:9999!important;border-radius:0!important;margin:0!important;max-height:none!important}
     .frame.fullscreen .scroll{max-height:none!important}
-    @media (max-width:1180px){body{overflow:auto}.app{grid-template-columns:1fr;gap:18px}.main{overflow:visible}.hero,.deck{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media (max-width:760px){.app{padding:14px;gap:14px}.head,.stage-head{flex-direction:column;align-items:stretch}.pills,.actions{justify-content:flex-start}.metrics,.deck,.prompts,.hero{grid-template-columns:1fr}.frame,.panel,.card,.deck-card{border-radius:22px}.widget-body,.placeholder{padding:18px}}
+    @media (max-width:1180px){.app{grid-template-columns:1fr;gap:16px}.hero,.deck{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:760px){.app{padding:12px;gap:12px}.head,.stage-head{flex-direction:column;align-items:stretch;gap:12px}.title h2{font-size:1.5rem}.stage-copy h3{font-size:1rem}.pills{flex-wrap:wrap;gap:8px}.actions{gap:8px}.action span{display:none}.action{padding:9px 12px}.metrics,.deck,.prompts,.hero{grid-template-columns:1fr}.frame{min-height:50vh;border-radius:18px}.panel,.card,.deck-card{border-radius:18px}.widget-body{padding:16px}.placeholder{padding:16px}.shellbar{flex-wrap:wrap;gap:8px}.widget-count{display:none}.canvas-cmd{padding:10px 12px 12px;gap:8px}.canvas-input{font-size:.82rem}.canvas-send-btn{padding:9px 14px;font-size:.78rem}}
   </style>
 </head>
 <body>
@@ -97,17 +97,18 @@
         <div class="stage-head" style="padding:4px 4px 18px">
           <div class="stage-copy"><div class="eyebrow">Active stage</div><h3>Render output with structure, hierarchy, and room to think.</h3><p>The shell stays stable while Hiro swaps in the latest chart, board, table, or interactive widget.</p></div>
           <div class="actions">
-            <button class="action" type="button" id="copy-link"><strong>Copy canvas link</strong><span>Share the operator route</span></button>
-            <button class="action" type="button" id="fullscreen-btn"><strong>Fullscreen</strong><span>Expand the widget stage</span></button>
-            <button class="action" type="button" id="download-btn"><strong>Download HTML</strong><span>Save the current widget</span></button>
-            <button class="action" type="button" id="reconnect"><strong>Reconnect stream</strong><span>Reset the socket if needed</span></button>
+            <button class="action" type="button" id="copy-link"><strong>Copy link</strong><span>Share this canvas</span></button>
+            <button class="action" type="button" id="reconnect"><strong>Reconnect</strong><span>Reset socket</span></button>
           </div>
         </div>
 
         <div class="frame">
           <div class="shellbar">
-            <div><div class="widget-kicker" id="widget-kicker">Waiting for render</div><div class="widget-title" id="widget-title">Hiro Live Canvas is standing by.</div></div>
-            <div class="widget-count"><div class="widget-updated" id="widget-updated">No render received yet</div><div class="widget-kicker" id="widget-count">0 renders in this view</div></div>
+            <div class="shellbar-left"><div class="widget-kicker" id="widget-kicker">Waiting for render</div><div class="widget-title" id="widget-title">Hiro Live Canvas is standing by.</div></div>
+            <div class="shellbar-right">
+              <div class="widget-count"><div class="widget-updated" id="widget-updated">No render yet</div><div class="widget-kicker" id="widget-count">0 renders</div></div>
+              <div class="shell-btns"><button class="shell-btn" type="button" id="fullscreen-btn" title="Toggle fullscreen">[ ]</button><button class="shell-btn" type="button" id="download-btn" title="Download widget as HTML">↓ html</button></div>
+            </div>
           </div>
           <div class="scroll">
             <div class="placeholder" id="placeholder">
@@ -176,7 +177,7 @@
     function connect(){if(state.reconnectTimer)clearTimeout(state.reconnectTimer);if(state.socket){state.socket.onclose=null;state.socket.onerror=null;if(state.socket.readyState===WebSocket.OPEN||state.socket.readyState===WebSocket.CONNECTING)state.socket.close()}setStatus("connecting","Connecting...","Preparing the operator stream","ws connect");state.socket=new WebSocket(WS_URL);state.socket.onopen=()=>{state.reconnectDelay=1500;setStatus("connected","Connected","Live canvas stream is ready for Hiro output","ws open")};state.socket.onmessage=(event)=>{try{const payload=JSON.parse(event.data);if(payload.type==="widget"&&!isBootstrap(payload)){renderWidget(payload,true,0)}else if(payload.type==="append"){appendWidget(payload)}else if(payload.type==="clear"){clearCanvas()}else if(payload.type==="chat_reply"&&payload.text){showChatReply(payload.text)}}catch(error){console.warn("[Canvas] Invalid payload",error)}};state.socket.onclose=()=>scheduleReconnect();state.socket.onerror=()=>state.socket&&state.socket.close()}
     async function copyText(text,message){try{await navigator.clipboard.writeText(text);toast(message)}catch(error){console.warn("[Canvas] Clipboard write failed",error);toast("Clipboard access failed in this browser.")}}
     async function sendToHiro(message){if(!message||state.sending)return;state.sending=true;ui.cmdSend.disabled=true;ui.cmdSend.textContent="Sending…";showChatReply("Thinking…");try{const r=await fetch("/canvas/send",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"include",body:JSON.stringify({message})});if(!r.ok)throw new Error(`HTTP ${r.status}`);ui.cmdInput.value=""}catch(err){showChatReply(`Send failed: ${err.message}`)}finally{state.sending=false;ui.cmdSend.disabled=false;ui.cmdSend.textContent="Send"}}
-    function toggleFullscreen(){state.fullscreen=!state.fullscreen;ui.frame.classList.toggle("fullscreen",state.fullscreen);ui.fullscreenBtn.querySelector("strong").textContent=state.fullscreen?"Exit fullscreen":"Fullscreen"}
+    function toggleFullscreen(){state.fullscreen=!state.fullscreen;ui.frame.classList.toggle("fullscreen",state.fullscreen);ui.fullscreenBtn.textContent=state.fullscreen?"[x]":"[ ]";ui.fullscreenBtn.title=state.fullscreen?"Exit fullscreen":"Toggle fullscreen"}
     function downloadWidget(){const html=ui.widgetBody.innerHTML;if(!html.trim()){toast("Nothing to download yet.");return}const title=ui.widgetTitle.textContent||"widget";const blob=new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>body{font-family:system-ui,sans-serif;background:#08131d;color:#edf3f9;padding:28px}</style></head><body>${html}</body></html>`],{type:"text/html"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`${title.toLowerCase().replace(/[^a-z0-9]+/g,"-")}.html`;a.click();URL.revokeObjectURL(a.href);toast("Widget downloaded.")}
     ui.copyLink.addEventListener("click",()=>copyText(location.href,"Canvas link copied."));
     ui.reconnect.addEventListener("click",()=>{state.reconnectDelay=1500;connect();toast("Canvas stream reconnect requested.")});
