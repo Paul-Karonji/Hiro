@@ -11,11 +11,10 @@ const DEFAULT_MESH_COLLABORATION_MODELS = [
   "resurge:grok-4.1-thinking",
   "resurge:moonshotai/kimi-k2-instruct-0905",
   "resurge:grok-4",
-  // Alibaba — 1M free tokens (International endpoint), open-source always free
-  "alibaba:qwen3-max",
-  "alibaba:qwen-plus-latest",
-  "alibaba:qwq-plus",
+  // Alibaba — open-source, free forever
   "alibaba:qwen3-235b-a22b",
+  "alibaba:qwq-32b",
+  "alibaba:qwen3-32b",
   // Google — free tier
   "google:gemini-2.5-flash",
   // OpenRouter free fallback

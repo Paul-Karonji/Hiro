@@ -9,36 +9,12 @@ type ModelEntry = {
 
 const MODEL_ENTRIES: ModelEntry[] = [
   {
-    id: "alibaba:qwen-plus-latest",
-    alias: "qwen",
-    label: "Qwen Plus Latest (Alibaba)",
-    note: "128K-1M ctx, thinking + non-thinking, free quota on International endpoint",
-    section: "Recommended",
-    aliases: ["default", "qwenmain", "qwenplus", "alibabaqwen"],
-  },
-  {
     id: "openrouter:qwen/qwen3.6-plus:free",
     alias: "qwenor",
     label: "Qwen 3.6 Plus Free (OpenRouter)",
     note: "free OpenRouter fallback",
     section: "OpenRouter",
     aliases: ["qwenfree", "orqwen", "qwenrouter"],
-  },
-  {
-    id: "alibaba:qwen3.5-plus",
-    alias: "qwen35",
-    label: "Qwen 3.5 Plus (Alibaba)",
-    note: "snapshot qwen3.5-plus-2026-02-15, free quota on International endpoint",
-    section: "Recommended",
-    aliases: ["q35", "qwen35ali", "alibabaqwen35"],
-  },
-  {
-    id: "alibaba:qwen3-max",
-    alias: "qwen3max",
-    label: "Qwen3 Max (Alibaba)",
-    note: "new flagship — reasoning + tool use, free quota on International endpoint",
-    section: "Recommended",
-    aliases: ["qmax", "qwen3flagship"],
   },
   {
     id: "openrouter:qwen/qwen3.5-plus-02-15",
@@ -73,46 +49,6 @@ const MODEL_ENTRIES: ModelEntry[] = [
     aliases: ["deepseek", "dsv31"],
   },
   {
-    id: "alibaba:qwen-max-latest",
-    alias: "qwenmax",
-    label: "Qwen Max Latest (Alibaba)",
-    note: "32K ctx, strongest Qwen flagship, free quota on International endpoint",
-    section: "Alibaba",
-    aliases: ["qwenmaxlatest", "alimax"],
-  },
-  {
-    id: "alibaba:qwen-flash",
-    alias: "qwenflash",
-    label: "Qwen Flash (Alibaba)",
-    note: "latency-optimised, free quota on International endpoint",
-    section: "Alibaba",
-    aliases: ["flash", "aliflash"],
-  },
-  {
-    id: "alibaba:qwen3.5-flash",
-    alias: "qwen35flash",
-    label: "Qwen 3.5 Flash (Alibaba)",
-    note: "snapshot qwen3.5-flash-2026-02-23, free quota on International endpoint",
-    section: "Alibaba",
-    aliases: ["q35flash", "aliflash35"],
-  },
-  {
-    id: "alibaba:qwen-turbo-latest",
-    alias: "qwenturbo",
-    label: "Qwen Turbo Latest (Alibaba)",
-    note: "fastest + cheapest Qwen, free quota on International endpoint",
-    section: "Alibaba",
-    aliases: ["turbo", "aliturbo"],
-  },
-  {
-    id: "alibaba:qwq-plus",
-    alias: "qwq",
-    label: "QwQ Plus (Alibaba)",
-    note: "Alibaba reasoning model, free quota on International endpoint",
-    section: "Alibaba",
-    aliases: ["qwqplus", "alireason"],
-  },
-  {
     id: "alibaba:qwq-32b",
     alias: "qwq32b",
     label: "QwQ 32B (Alibaba)",
@@ -143,14 +79,6 @@ const MODEL_ENTRIES: ModelEntry[] = [
     note: "open-source 30B MoE dual-mode \u2014 free",
     section: "Alibaba",
     aliases: ["qwen330b", "ali30b"],
-  },
-  {
-    id: "alibaba:deepseek-v3.1",
-    alias: "alidseek",
-    label: "DeepSeek V3.1 (Alibaba-hosted)",
-    note: "671B DeepSeek hosted on Alibaba Cloud",
-    section: "Alibaba",
-    aliases: ["alideepseek", "alibabads"],
   },
   {
     id: "google:gemini-2.0-flash",
@@ -488,7 +416,7 @@ export function buildModelsCatalogMarkdown(activeModelId: string) {
     "",
     "Use `/setmodel alias` for short names.",
     "You can also pass the full id with `/setmodel provider:model-name`.",
-    "Friendly examples: `qwen`, `qwen3max`, `qwenflash`, `qwq`, `gemini`, `grok41fast`.",
+    "Friendly examples: `qwq32b`, `qwen235b`, `qwen3_32b`, `gemini`, `grok41fast`.",
     "You can even type the display name, for example `/setmodel Qwen Plus Latest`.",
     "Image-only marketplace models are hidden here because Hiro's runtime expects chat/text models.",
   ];
@@ -509,7 +437,7 @@ export function buildModelsCatalogMarkdown(activeModelId: string) {
   }
 
   lines.push("");
-  lines.push("Examples: `/setmodel qwen`, `/setmodel qwen3max`, `/setmodel qwenflash`, `/setmodel qwq`, `/setmodel gemini`, `/setmodel grok41fast`");
+  lines.push("Examples: `/setmodel qwq32b`, `/setmodel qwen235b`, `/setmodel qwen3_32b`, `/setmodel gemini`, `/setmodel grok41fast`");
 
   return lines.join("\n");
 }
