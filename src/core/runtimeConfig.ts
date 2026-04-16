@@ -17,7 +17,10 @@ const DEFAULT_MESH_COLLABORATION_MODELS = [
   "alibaba:qwen3-32b",
   // Google — free tier
   "google:gemini-2.5-flash",
-  // OpenRouter free fallback
+  // OpenRouter — confirmed free (April 2026)
+  "openrouter:openai/gpt-oss-120b:free",
+  "openrouter:meta-llama/llama-3.3-70b-instruct:free",
+  "openrouter:deepseek/deepseek-r1:free",
   "openrouter:qwen/qwen3.6-plus:free",
 ];
 
