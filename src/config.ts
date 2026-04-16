@@ -17,7 +17,7 @@ export const config = {
   ACTIVE_CHANNEL: process.env.ACTIVE_CHANNEL || "telegram",
 
   // Agent Multi-Model Core
-  ACTIVE_MODEL: process.env.ACTIVE_MODEL || "alibaba:qwen3-235b-a22b", // Default fallback if not set
+  ACTIVE_MODEL: process.env.ACTIVE_MODEL || "resurge:grok-4.1-fast", // Default fallback if not set
   ALIBABA_API_KEY: process.env.ALIBABA_API_KEY || "",
   ALIBABA_BASE_URL: process.env.ALIBABA_BASE_URL || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
